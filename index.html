@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>HOLY POKER</title>
+<!-- home-screen web app (iOS + Android) -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Holy Poker">
+<meta name="theme-color" content="#0a0618">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%231a1030'/><text x='8' y='12' font-size='11' text-anchor='middle' fill='%23ffd97a'>♠</text></svg>">
+</head>
+<body>
+<canvas id="game-canvas"></canvas>
+<div id="rotate-overlay">
+  <div class="rotate-inner">
+    <div class="rotate-icon">⟳</div>
+    <div class="rotate-title">ROTATE YOUR DEVICE</div>
+    <div class="rotate-sub">Holy Poker plays in landscape</div>
+  </div>
+</div>
+<div id="crt-overlay"></div>
+<div id="vignette"></div>
+
+<div id="ui">
+
+  <!-- ============ MAIN MENU ============ -->
+  <div class="screen" id="screen-menu">
+    <div class="menu-center">
+      <div class="title-wrap">
+        <div class="game-title"><span class="t-holy">HOLY</span> <span class="t-poker">POKER</span></div>
+        <div class="title-sub">✦ ARISE, AND PLAY YOUR HAND ✦</div>
+      </div>
+      <div class="menu-buttons">
+        <button class="btn btn-big btn-gold" id="btn-play">▶ PLAY</button>
+        <button class="btn btn-big" id="btn-sanctum">⛧ SANCTUM <span class="btn-note">upgrade cards</span></button>
+        <button class="btn btn-big" id="btn-styles">✎ CARD STYLES</button>
+        <button class="btn btn-big" id="btn-stats">☰ DECK STATS</button>
+        <button class="btn btn-big" id="btn-settings">⚙&#xFE0E; SETTINGS</button>
+      </div>
+      <div class="menu-currencies">
+        <span class="cur cur-essence" title="Essence — upgrade your cards">⟠ <span id="menu-essence">0</span></span>
+        <span class="cur cur-gold" title="Gold — unlock card styles">● <span id="menu-gold">0</span></span>
+      </div>
+      <div class="menu-footer">v1.0 — progress is never lost · <span id="menu-hint"></span></div>
+    </div>
+  </div>
+
+  <!-- ============ GAMEMODE SELECT ============ -->
+  <div class="screen" id="screen-modes">
+    <div class="panel panel-wide">
+      <div class="panel-title">CHOOSE YOUR TRIAL</div>
+      <div class="modes-grid" id="modes-grid"></div>
+      <div class="panel-actions"><button class="btn" id="btn-modes-back">← BACK</button></div>
+    </div>
+  </div>
+
+  <!-- ============ SANCTUM (deck / upgrades) ============ -->
+  <div class="screen" id="screen-sanctum">
+    <div class="sanctum-layout">
+      <div class="panel sanctum-left">
+        <div class="panel-title">⛧ THE SANCTUM</div>
+        <div class="sanctum-sub">Every card remembers. Play them to gain XP, or infuse Essence directly.</div>
+        <div class="sanctum-cur">⟠ <span id="sanctum-essence">0</span> essence</div>
+        <div class="card-grid" id="sanctum-grid"></div>
+        <div class="panel-actions"><button class="btn" id="btn-sanctum-back">← BACK</button></div>
+      </div>
+      <div class="panel sanctum-right" id="sanctum-detail">
+        <div class="detail-empty">SELECT A CARD</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ CARD STYLES ============ -->
+  <div class="screen" id="screen-styles">
+    <div class="panel panel-wide">
+      <div class="panel-title">✎ CARD STYLES</div>
+      <div class="styles-cur">● <span id="styles-gold">0</span> gold</div>
+      <div class="styles-grid" id="styles-grid"></div>
+      <div class="panel-actions"><button class="btn" id="btn-styles-back">← BACK</button></div>
+    </div>
+  </div>
+
+  <!-- ============ STATS ============ -->
+  <div class="screen" id="screen-stats">
+    <div class="panel panel-wide">
+      <div class="panel-title">☰ DECK STATS</div>
+      <div id="stats-content"></div>
+      <div class="panel-actions"><button class="btn" id="btn-stats-back">← BACK</button></div>
+    </div>
+  </div>
+
+  <!-- ============ SETTINGS ============ -->
+  <div class="screen" id="screen-settings">
+    <div class="panel">
+      <div class="panel-title">⚙ SETTINGS</div>
+      <div class="settings-rows" id="settings-rows"></div>
+      <div class="panel-actions">
+        <button class="btn btn-danger" id="btn-reset-save">RESET ALL PROGRESS</button>
+        <button class="btn" id="btn-settings-back">← BACK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ IN-GAME HUD ============ -->
+  <div class="screen" id="screen-hud">
+    <div class="hud-topleft">
+      <div class="hud-panel round-panel">
+        <div class="round-label" id="hud-round">ACT I · ROUND 1</div>
+        <div class="boss-banner hidden" id="hud-boss"></div>
+        <div class="target-row">
+          <span class="target-label">TARGET</span>
+          <span class="target-value" id="hud-target">300</span>
+        </div>
+        <div class="score-bar"><div class="score-fill" id="hud-scorefill"></div></div>
+        <div class="score-row"><span id="hud-score">0</span></div>
+      </div>
+      <div class="hud-panel blessings-panel hidden" id="hud-blessings"></div>
+    </div>
+
+    <div class="hud-topright">
+      <span class="cur cur-essence">⟠ <span id="hud-essence">0</span></span>
+      <span class="cur cur-gold">● <span id="hud-gold">0</span></span>
+      <button class="btn btn-small" id="btn-pause">II</button>
+    </div>
+
+    <div class="hud-scoring hidden" id="hud-scoring">
+      <div class="scoring-handname" id="scoring-handname">FLUSH</div>
+      <div class="scoring-numbers">
+        <span class="chips-box" id="scoring-chips">0</span>
+        <span class="score-x">×</span>
+        <span class="mult-box" id="scoring-mult">0</span>
+      </div>
+      <div class="scoring-total hidden" id="scoring-total">0</div>
+    </div>
+
+    <div class="hud-bottomleft">
+      <div class="stat-chip" title="Hands remaining this round">✚ <span id="hud-hands">4</span></div>
+      <div class="stat-chip" title="Discards remaining this round">⟲ <span id="hud-discards">3</span></div>
+      <div class="stat-chip" title="Cards left in deck">▤ <span id="hud-deck">44</span></div>
+    </div>
+
+    <div class="hud-preview hidden" id="hud-preview">
+      <span class="preview-name" id="preview-name"></span>
+      <span class="preview-nums" id="preview-nums"></span>
+    </div>
+
+    <div class="hud-bottomright">
+      <button class="btn btn-small" id="btn-sort">SORT: RANK</button>
+      <div class="action-row">
+        <button class="btn btn-play" id="btn-playhand" disabled>PLAY HAND</button>
+        <button class="btn btn-discard" id="btn-discard" disabled>DISCARD</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ ROUND END / BLESSING ============ -->
+  <div class="screen" id="screen-roundend">
+    <div class="panel roundend-panel">
+      <div class="panel-title gold-text" id="roundend-title">ROUND CLEARED</div>
+      <div class="reward-rows" id="reward-rows"></div>
+      <div class="blessing-section hidden" id="blessing-section">
+        <div class="blessing-title">✦ CHOOSE A BLESSING ✦</div>
+        <div class="blessing-sub">active until this run ends</div>
+        <div class="blessing-choices" id="blessing-choices"></div>
+      </div>
+      <div class="panel-actions"><button class="btn btn-gold hidden" id="btn-nextround">CONTINUE →</button></div>
+    </div>
+  </div>
+
+  <!-- ============ RUN END ============ -->
+  <div class="screen" id="screen-runend">
+    <div class="panel runend-panel">
+      <div class="panel-title" id="runend-title">THE HOUSE PREVAILS</div>
+      <div class="runend-flavor" id="runend-flavor"></div>
+      <div class="reward-rows" id="runend-rows"></div>
+      <div class="panel-actions">
+        <button class="btn btn-gold btn-big" id="btn-arise">⟳ ARISE AGAIN</button>
+        <button class="btn" id="btn-runend-menu">MENU</button>
+      </div>
+      <div class="runend-note">your cards keep everything they earned</div>
+    </div>
+  </div>
+
+  <!-- ============ SHOP (The Reliquary) ============ -->
+  <div class="screen" id="screen-shop">
+    <div class="panel panel-wide shop-panel">
+      <div class="panel-title">✜ THE RELIQUARY</div>
+      <div class="shop-sub">spend your gold — the next round waits</div>
+      <div class="shop-gold">● <span id="shop-gold">0</span></div>
+      <div class="shop-grid" id="shop-grid"></div>
+      <div class="shop-altar hidden" id="shop-altar">
+        <div class="altar-text">☩ the boss falls — the SANCTUM ALTAR opens ☩<br>
+          <span class="altar-sub">spend <span class="cur-essence">⟠ <span id="altar-essence">0</span></span> essence on card upgrades before marching on</span>
+        </div>
+        <button class="btn" id="btn-altar">⛧ OPEN THE ALTAR</button>
+      </div>
+      <div class="panel-actions">
+        <button class="btn" id="btn-reroll">⟲ REROLL 10●</button>
+        <button class="btn btn-gold" id="btn-shop-continue">NEXT ROUND →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ PAUSE ============ -->
+  <div class="screen" id="screen-pause">
+    <div class="panel">
+      <div class="panel-title">PAUSED</div>
+      <div class="menu-buttons">
+        <button class="btn btn-big btn-gold" id="btn-resume">RESUME</button>
+        <button class="btn btn-big" id="btn-pause-settings">SETTINGS</button>
+        <button class="btn btn-big btn-danger" id="btn-abandon">ABANDON RUN</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MODAL ============ -->
+  <div class="screen" id="screen-modal">
+    <div class="panel modal-panel">
+      <div class="modal-text" id="modal-text"></div>
+      <div class="panel-actions">
+        <button class="btn btn-danger" id="modal-yes">YES</button>
+        <button class="btn" id="modal-no">NO</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toasts"></div>
+  <div id="tooltip" class="hidden"></div>
+</div>
+
+<script src="js/vendor/three.min.js"></script>
+<script src="js/util.js"></script>
+<script src="js/save.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/cardart.js"></script>
+<script src="js/uiart.js"></script>
+<script src="js/poker.js"></script>
+<script src="js/cards.js"></script>
+<script src="js/scene3d.js"></script>
+<script src="js/game.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

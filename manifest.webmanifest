@@ -1,0 +1,15 @@
+{
+  "name": "Holy Poker",
+  "short_name": "Holy Poker",
+  "description": "A holy 3D pixel-art roguelike poker game — level your cards, arise again.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#07030f",
+  "theme_color": "#0a0618",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
