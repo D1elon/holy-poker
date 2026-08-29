@@ -27,19 +27,27 @@ HP.audio = (function () {
       musicGain.connect(master);
       sfxGain.connect(master);
 
-      // cathedral tail: generated impulse response
+      // cathedral tail: generated impulse response. Return path is high-passed
+      // so the long tail keeps shimmer without stacking low-mid mud.
       reverb = ctx.createConvolver();
       reverb.buffer = makeImpulse(2.6, 2.9);
-      revGain = ctx.createGain(); revGain.gain.value = 0.85;
-      reverb.connect(revGain); revGain.connect(master);
-      sfxSend = ctx.createGain(); sfxSend.gain.value = 0.22;
-      musSend = ctx.createGain(); musSend.gain.value = 0.4;
+      const revHP = ctx.createBiquadFilter();
+      revHP.type = 'highpass'; revHP.frequency.value = 280;
+      revGain = ctx.createGain(); revGain.gain.value = 0.55;
+      reverb.connect(revHP); revHP.connect(revGain); revGain.connect(master);
+      sfxSend = ctx.createGain(); sfxSend.gain.value = 0.2;
+      musSend = ctx.createGain(); musSend.gain.value = 0.26;
       sfxGain.connect(sfxSend); sfxSend.connect(reverb);
       musicGain.connect(musSend); musSend.connect(reverb);
 
       applyVolumes();
       return true;
-    } catch (e) { return false; }
+    } catch (e) {
+      // partial init must not poison future attempts
+      try { if (ctx) ctx.close(); } catch (_) { /* already dead */ }
+      ctx = null;
+      return false;
+    }
   }
 
   function makeImpulse(dur, decay) {
@@ -60,6 +68,9 @@ HP.audio = (function () {
     master.gain.value = s.master * s.master;
     musicGain.gain.value = s.music * s.music * 0.55;
     sfxGain.gain.value = s.sfx * s.sfx;
+    // silenced music shouldn't keep burning CPU scheduling oscillators
+    if (s.music === 0 || s.master === 0) stopMusic();
+    else if (started && !musicOn) startMusic();
   }
 
   // ---------- voice helpers ----------
@@ -268,22 +279,39 @@ HP.audio = (function () {
     b.start(when); b.stop(when + BAR + 0.1);
   }
 
+  // audio-clock lookahead scheduler: timers can be late (heavy frames,
+  // backgrounded tabs) — bars are pinned to ctx.currentTime, never wall time,
+  // so lateness under the lookahead window is inaudible and tempo never drifts.
+  let nextBarTime = 0;
   function musicLoop() {
     if (!musicOn || !ctx) return;
-    scheduleBar(ctx.currentTime + 0.15, PROG[step % PROG.length], step);
-    step++;
-    musicTimer = setTimeout(musicLoop, BAR * 1000 - 60);
+    // after a long suspension, skip the missed bars instead of bursting them
+    if (nextBarTime < ctx.currentTime - 0.05) nextBarTime = ctx.currentTime + 0.1;
+    while (nextBarTime < ctx.currentTime + 0.45) {
+      scheduleBar(nextBarTime, PROG[step % PROG.length], step);
+      step++;
+      nextBarTime += BAR;
+    }
+    musicTimer = setTimeout(musicLoop, 120);
   }
 
   function startMusic() {
     if (!ensure() || musicOn) return;
     musicOn = true; step = 0;
+    nextBarTime = ctx.currentTime + 0.15;
     musicLoop();
   }
   function stopMusic() {
     musicOn = false;
     if (musicTimer) { clearTimeout(musicTimer); musicTimer = null; }
   }
+
+  // don't schedule music into a hidden tab (iOS suspends timers anyway;
+  // this makes the resume clean instead of a burst)
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stopMusic();
+    else if (started && HP.save.meta.settings.music > 0 && HP.save.meta.settings.master > 0) startMusic();
+  });
 
   // unlock audio on first interaction
   function userGesture() {

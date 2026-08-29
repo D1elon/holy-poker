@@ -41,7 +41,7 @@ HP.cards = (function () {
     const face = isFace(id) ? 1.5 : 1;
     const tm = TIER_MULT[tierOf(lv)];
     switch (suit) {
-      case 'H': return Math.round((8 + 5 * (lv - 1)) * face * tm);
+      case 'H': return Math.round((12 + 7 * (lv - 1)) * face * tm); // buffed: +chips must keep pace with the mult economy
       case 'C': return Math.round((2 + 1 * (lv - 1)) * face * tm);
       case 'S': {
         const x = 1 + (0.05 + 0.04 * (lv - 1)) * face * tm;
@@ -104,6 +104,11 @@ HP.cards = (function () {
     }
     if (c.lv >= MAX_LEVEL) c.xp = 0;
     HP.save.save();
+    if (gained.some(l => l >= 5)) {
+      grantFeat('awaken1');
+      if (awakenedCount() >= 13) grantFeat('host13');
+    }
+    if (gained.includes(MAX_LEVEL)) grantFeat('transcend1');
     return gained;
   }
 
@@ -140,13 +145,13 @@ HP.cards = (function () {
 
   // ---- shop wares (The Reliquary, between rounds; priced in gold) ----
   const SHOP_ITEMS = [
-    { id: 'tithe',      icon: '⟠', name: 'TITHE BOX',        desc: '+8 essence, banked instantly',           cost: 12 },
-    { id: 'chest',      icon: '✦', name: 'RELIQUARY CHEST',  desc: '+22 essence, banked instantly',          cost: 32 },
+    { id: 'tithe',      icon: '⟠', name: 'TITHE BOX',        desc: '+8 essence, banked instantly',           cost: 10 },
+    { id: 'chest',      icon: '✦', name: 'RELIQUARY CHEST',  desc: '+22 essence, banked instantly',          cost: 34 },
     { id: 'scroll',     icon: '✎', name: 'BLESSED SCROLL',   desc: '+80 XP to a random card',                cost: 18 },
     { id: 'tome',       icon: '❦', name: 'GILDED TOME',      desc: '+50 XP to 3 random cards',               cost: 35 },
     { id: 'sigilhigh',  icon: '▲', name: 'ASCENDANT SIGIL',  desc: '+100 XP to your highest-level card',     cost: 25 },
     { id: 'sigillow',   icon: '♁', name: "SHEPHERD'S SIGIL", desc: '+60 XP to each of your 3 lowest cards',  cost: 20 },
-    { id: 'miracle',    icon: '✧', name: 'SMALL MIRACLE',    desc: 'a random card gains a full level',       cost: 45 },
+    { id: 'miracle',    icon: '✧', name: 'SMALL MIRACLE',    desc: 'your highest card gains a full level',   cost: 45 },
     { id: 'candle',     icon: '❋', name: 'VOTIVE CANDLE',    desc: '+30 base chips on every hand this run',  cost: 22 },
     { id: 'horn',       icon: '♪', name: 'WAR HYMN',         desc: '+2 base mult on every hand this run',    cost: 30 },
     { id: 'chalice',    icon: '✚', name: 'CHALICE OF VIGOR', desc: '+1 hand every round this run',           cost: 38 },
@@ -155,6 +160,45 @@ HP.cards = (function () {
     { id: 'favor',      icon: '☩', name: "SAINT'S FAVOR",    desc: 'gain a random blessing',                 cost: 40 },
     { id: 'indulgence', icon: '✟', name: 'INDULGENCE',       desc: "next round's chip target −15%",          cost: 15 },
   ];
+
+  // ---- feats (achievements; persistent, each pays 25 gold once) ----
+  const FEATS = [
+    { id: 'firstblood',  name: 'FIRST LIGHT',        desc: 'clear your first round' },
+    { id: 'awaken1',     name: 'THE AWAKENING',      desc: 'awaken a card (Lv.5)' },
+    { id: 'transcend1',  name: 'TRANSCENDENCE',      desc: 'transcend a card (Lv.10)' },
+    { id: 'host13',      name: 'THE AWAKENED HOST',  desc: 'have 13 awakened cards' },
+    { id: 'sfeat',       name: 'DIVINE ORDER',       desc: 'play a straight flush' },
+    { id: 'royal',       name: 'HAND OF GOD',        desc: 'play a royal flush' },
+    { id: 'bighand',     name: 'MIRACLE',            desc: 'score 10,000 in one hand' },
+    { id: 'gianthand',   name: 'REVELATION',         desc: 'score 100,000 in one hand' },
+    { id: 'comeback',    name: 'DELIVERANCE',        desc: 'clear a round on your final hand' },
+    { id: 'sainthood',   name: 'SAINTHOOD',          desc: 'hold 5 blessings in one run' },
+    { id: 'patron',      name: 'PATRON OF THE ARTS', desc: 'buy 3 relics in one shop visit' },
+    { id: 'rich',        name: 'TITHE OVERFLOWING',  desc: 'hold 100 gold' },
+    { id: 'ascended',    name: 'ASCENDED',           desc: 'win a Pilgrimage' },
+    { id: 'crusader',    name: 'CRUSADER',           desc: 'win a Crusade' },
+    { id: 'rited',       name: 'DAILY DEVOTION',     desc: 'win a Daily Rite' },
+    { id: 'deepvigil',   name: 'DEEP VIGIL',         desc: 'reach round 15 in Endless' },
+  ];
+  const FEAT_GOLD = 25;
+
+  function grantFeat(id) {
+    const meta = HP.save.meta;
+    if (!meta.feats) meta.feats = {};
+    if (meta.feats[id]) return false;
+    const f = FEATS.find(x => x.id === id);
+    if (!f) return false;
+    meta.feats[id] = Date.now();
+    meta.gold += FEAT_GOLD;
+    meta.totals.goldEarned += FEAT_GOLD;
+    HP.save.save();
+    if (HP.ui) HP.ui.toast(`☩ FEAT: ${f.name} (+${FEAT_GOLD}●)`, true);
+    if (HP.audio) HP.audio.sfx('bless');
+    return true;
+  }
+
+  const awakenedCount = () =>
+    ALL_IDS.filter(id => (HP.save.meta.cards[id] || { lv: 1 }).lv >= 5).length;
 
   // ---- game modes ----
   const MODES = {
@@ -199,5 +243,6 @@ HP.cards = (function () {
     abilityValue, abilityDesc, shortAbility, cardName, cardState, addXp,
     INFUSE_COST, INFUSE_XP,
     BLESSINGS, BOSSES, SHOP_ITEMS, MODES, targetFor, isBossRound, actOf,
+    FEATS, grantFeat,
   };
 })();

@@ -31,8 +31,9 @@ http.createServer((req, res) => {
     });
     return;
   }
-  const file = path.join(ROOT, path.normalize(url));
+  let file = path.join(ROOT, path.normalize(url));
   if (!file.startsWith(ROOT)) { res.writeHead(403); res.end(); return; }
+  try { if (fs.statSync(file).isDirectory()) file = path.join(file, 'index.html'); } catch (e) { /* falls through to 404 */ }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); res.end('not found'); return; }
     res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });

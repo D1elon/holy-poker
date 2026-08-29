@@ -37,15 +37,17 @@
         <div class="title-sub">✦ ARISE, AND PLAY YOUR HAND ✦</div>
       </div>
       <div class="menu-buttons">
+        <button class="btn btn-big btn-gold hidden" id="btn-continue">⟳ CONTINUE RUN</button>
         <button class="btn btn-big btn-gold" id="btn-play">▶ PLAY</button>
         <button class="btn btn-big" id="btn-sanctum">⛧ SANCTUM <span class="btn-note">upgrade cards</span></button>
         <button class="btn btn-big" id="btn-styles">✎ CARD STYLES</button>
         <button class="btn btn-big" id="btn-stats">☰ DECK STATS</button>
         <button class="btn btn-big" id="btn-settings">⚙&#xFE0E; SETTINGS</button>
+        <button class="btn btn-big" id="btn-help">? HOW TO PLAY</button>
       </div>
       <div class="menu-currencies">
-        <span class="cur cur-essence" title="Essence — upgrade your cards">⟠ <span id="menu-essence">0</span></span>
-        <span class="cur cur-gold" title="Gold — unlock card styles">● <span id="menu-gold">0</span></span>
+        <span class="cur cur-essence" data-tt="Essence — spend it in the Sanctum to level cards" title="Essence — upgrade your cards">⟠ <span id="menu-essence">0</span></span>
+        <span class="cur cur-gold" data-tt="Gold — spend it in the shop and on card styles" title="Gold — unlock card styles">● <span id="menu-gold">0</span></span>
       </div>
       <div class="menu-footer">v1.0 — progress is never lost · <span id="menu-hint"></span></div>
     </div>
@@ -124,8 +126,9 @@
     </div>
 
     <div class="hud-topright">
-      <span class="cur cur-essence">⟠ <span id="hud-essence">0</span></span>
-      <span class="cur cur-gold">● <span id="hud-gold">0</span></span>
+      <span class="cur cur-essence" data-tt="Essence — spend it in the Sanctum to level cards">⟠ <span id="hud-essence">0</span></span>
+      <span class="cur cur-gold" data-tt="Gold — spend it in the shop between rounds">● <span id="hud-gold">0</span></span>
+      <button class="btn btn-small" id="btn-hud-help">?</button>
       <button class="btn btn-small" id="btn-pause">II</button>
     </div>
 
@@ -140,9 +143,10 @@
     </div>
 
     <div class="hud-bottomleft">
-      <div class="stat-chip" title="Hands remaining this round">✚ <span id="hud-hands">4</span></div>
-      <div class="stat-chip" title="Discards remaining this round">⟲ <span id="hud-discards">3</span></div>
-      <div class="stat-chip" title="Cards left in deck">▤ <span id="hud-deck">44</span></div>
+      <div class="stat-chip" data-tt="Hands you can still play this round" title="Hands remaining this round">✚ <span id="hud-hands">4</span></div>
+      <div class="stat-chip" data-tt="Discards left — swap unwanted cards for new draws" title="Discards remaining this round">⟲ <span id="hud-discards">3</span></div>
+      <div class="stat-chip" id="deck-chip" title="Cards left in deck — click to peek">▤ <span id="hud-deck">44</span></div>
+      <div class="hud-panel deck-peek hidden" id="deck-peek"></div>
     </div>
 
     <div class="hud-preview hidden" id="hud-preview">
@@ -151,7 +155,10 @@
     </div>
 
     <div class="hud-bottomright">
-      <button class="btn btn-small" id="btn-sort">SORT: RANK</button>
+      <div class="action-row">
+        <button class="btn btn-small hidden" id="btn-clear">✕ CLEAR</button>
+        <button class="btn btn-small" id="btn-sort">SORT: RANK</button>
+      </div>
       <div class="action-row">
         <button class="btn btn-play" id="btn-playhand" disabled>PLAY HAND</button>
         <button class="btn btn-discard" id="btn-discard" disabled>DISCARD</button>
@@ -202,6 +209,7 @@
       </div>
       <div class="panel-actions">
         <button class="btn" id="btn-reroll">⟲ REROLL 10●</button>
+        <button class="btn btn-small" id="btn-shop-settings">⚙&#xFE0E;</button>
         <button class="btn btn-gold" id="btn-shop-continue">NEXT ROUND →</button>
       </div>
     </div>
@@ -213,9 +221,19 @@
       <div class="panel-title">PAUSED</div>
       <div class="menu-buttons">
         <button class="btn btn-big btn-gold" id="btn-resume">RESUME</button>
+        <button class="btn btn-big" id="btn-pause-help">? HAND VALUES</button>
         <button class="btn btn-big" id="btn-pause-settings">SETTINGS</button>
         <button class="btn btn-big btn-danger" id="btn-abandon">ABANDON RUN</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ============ HELP ============ -->
+  <div class="screen" id="screen-help">
+    <div class="panel panel-wide">
+      <div class="panel-title">? HOW TO PLAY</div>
+      <div id="help-content"></div>
+      <div class="panel-actions"><button class="btn" id="btn-help-back">← BACK</button></div>
     </div>
   </div>
 

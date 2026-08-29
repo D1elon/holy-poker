@@ -14,7 +14,12 @@ HP.save = (function () {
       settings: {
         master: 0.8, music: 0.55, sfx: 0.85,
         shake: true, crt: true, pixel: 3, // pixelation divisor
+        speed: 1, // game pacing multiplier (1 / 1.5 / 2)
       },
+      feats: {},         // feat id -> unlock timestamp
+      tipsShown: false,  // first-run onboarding toasts shown
+      pendingRun: null,  // serialized mid-run snapshot (survive reload/eviction)
+      daily: null,       // { date, attempts, bestRound, won }
       records: {
         standard: { bestRound: 0, wins: 0, runs: 0, bestScore: 0 },
         endless:  { bestRound: 0, wins: 0, runs: 0, bestScore: 0 },

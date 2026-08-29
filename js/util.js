@@ -46,6 +46,8 @@ HP.util = (function () {
 
   function fmt(n) {
     n = Math.round(n);
+    if (n >= 1e15) return (n / 1e15).toFixed(2).replace(/\.?0+$/, '') + 'Q';
+    if (n >= 1e12) return (n / 1e12).toFixed(2).replace(/\.?0+$/, '') + 'T';
     if (n >= 1e9) return (n / 1e9).toFixed(2).replace(/\.?0+$/, '') + 'B';
     if (n >= 1e6) return (n / 1e6).toFixed(2).replace(/\.?0+$/, '') + 'M';
     if (n >= 100000) return (n / 1e3).toFixed(1).replace(/\.?0+$/, '') + 'K';
@@ -92,7 +94,11 @@ HP.util = (function () {
   }
   const killTween = tw => { if (tw) tw.dead = true; };
 
-  const wait = ms => new Promise(res => setTimeout(res, ms));
+  // paced waits honor the player's speed setting (scoring/deal pacing)
+  const wait = ms => {
+    const sp = (window.HP && HP.save && HP.save.meta.settings.speed) || 1;
+    return new Promise(res => setTimeout(res, ms / sp));
+  };
 
   // animated number counter on a DOM element
   function countUp(el, from, to, dur, fmtFn) {

@@ -335,7 +335,12 @@ HP.art = (function () {
   }
 
   // ---- soft glow sprite ----
+  // cached by color: FX sprites share these, so callers must NEVER dispose
+  // the returned texture (materials yes, .map no) — this closed a GPU leak
+  // where every burst/pulse/ring created a fresh CanvasTexture.
   function makeGlowTexture(color) {
+    const key = 'glow|' + color;
+    if (texCache.has(key)) return texCache.get(key);
     const S = 64;
     const [cv, ctx] = mkCanvas(S, S);
     const g = ctx.createRadialGradient(S / 2, S / 2, 2, S / 2, S / 2, S / 2);
@@ -343,15 +348,20 @@ HP.art = (function () {
     g.addColorStop(0.5, color + '55');
     g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g; ctx.fillRect(0, 0, S, S);
-    return new THREE.CanvasTexture(cv);
+    const t = new THREE.CanvasTexture(cv);
+    texCache.set(key, t);
+    return t;
   }
 
-  // ---- tiny square particle ----
+  // ---- tiny square particle (cached by color, see note above) ----
   function makeSquareTexture(color) {
+    const key = 'sq|' + color;
+    if (texCache.has(key)) return texCache.get(key);
     const [cv, ctx] = mkCanvas(8, 8);
     ctx.fillStyle = color; ctx.fillRect(1, 1, 6, 6);
     const t = new THREE.CanvasTexture(cv);
     t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+    texCache.set(key, t);
     return t;
   }
 

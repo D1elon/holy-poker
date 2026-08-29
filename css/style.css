@@ -127,6 +127,9 @@ button, .btn, .mode-card, .blessing-choice, .style-card, .mini-card,
   display: none;
   align-items: center; justify-content: center;
   pointer-events: none;
+  /* keep centered panels out of the Dynamic Island / rounded corners */
+  padding-left: max(1vw, var(--sal));
+  padding-right: max(1vw, var(--sar));
 }
 .screen.active { display: flex; animation: screenIn 0.22s ease-out; }
 .screen > * { pointer-events: auto; }
@@ -149,6 +152,7 @@ button, .btn, .mode-card, .blessing-choice, .style-card, .mini-card,
   padding: 4px 12px 12px;
   position: relative;
   max-height: 92vh;
+  max-height: 92dvh; /* iOS toolbar-aware viewport */
   overflow-y: auto;
   filter: drop-shadow(0 14px 34px rgba(0, 0, 0, 0.65));
 }
@@ -408,6 +412,25 @@ button, .btn, .mode-card, .blessing-choice, .style-card, .mini-card,
   padding: 0 2px;
 }
 .top-card-box canvas { width: 40px; image-rendering: pixelated; }
+
+.feats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px; }
+.feat-box {
+  background: var(--panel-bg2); padding: 8px 10px;
+  box-shadow: 0 0 0 2px #2c1d52; opacity: 0.45;
+}
+.feat-box.got { opacity: 1; box-shadow: 0 0 0 2px var(--gold-dim); }
+.feat-name { font-family: 'PressStart', monospace; font-size: 0.55rem; color: var(--ink-dim); margin-bottom: 5px; }
+.feat-box.got .feat-name { color: var(--gold); text-shadow: 0 0 8px rgba(255,217,122,0.4); }
+.feat-desc { font-size: 0.95rem; color: var(--ink-dim); }
+
+.deck-peek {
+  position: absolute; bottom: 52px; left: 0;
+  min-width: 250px; z-index: 8;
+  font-family: 'PressStart', monospace; font-size: 0.55rem; line-height: 2;
+}
+.peek-row { display: flex; gap: 8px; align-items: baseline; white-space: nowrap; }
+.peek-suit { font-size: 0.8rem; }
+.peek-ranks { color: var(--ink); letter-spacing: 1px; }
 .top-card-info { font-size: 0.95rem; color: var(--ink-dim); line-height: 1.35; }
 .top-card-info b { color: var(--gold); }
 
@@ -544,6 +567,20 @@ button, .btn, .mode-card, .blessing-choice, .style-card, .mini-card,
 .preview-name { color: var(--gold); margin-right: 10px; text-shadow: 1px 1px 0 #000; }
 .preview-nums { color: var(--ink-dim); }
 .preview-nums b.c { color: var(--chip-blue); } .preview-nums b.m { color: var(--mult-red); }
+.preview-nums b.t { color: var(--ink); }
+.preview-nums b.t.clears { color: var(--gold); text-shadow: 0 0 8px rgba(255,217,122,0.5); }
+
+/* final hand: the counter burns */
+.stat-chip.last-hand {
+  color: var(--mult-red);
+  animation: bossPulse 1.2s ease-in-out infinite;
+}
+
+.relic-chip { color: var(--gold); }
+.relic-chip::before { content: '' !important; }
+
+.help-p { font-size: 1.15rem; line-height: 1.4; color: var(--ink); margin: 4px 0 10px; }
+.help-p b { color: var(--gold); }
 
 /* scoring display */
 .hud-scoring {
@@ -727,12 +764,11 @@ button, .btn, .mode-card, .blessing-choice, .style-card, .mini-card,
   .target-label { font-size: 0.8rem; }
   .score-bar { height: 9px; margin: 4px 0 3px; }
   .score-row { font-size: 0.78rem; }
-  .boss-banner { font-size: 0.85rem; }
   /* boss banner leaves the left column (it was pushing the panel down over
      the leftmost cards) and becomes a slim strip top-center */
   .boss-banner {
     position: fixed;
-    top: calc(46px + var(--sat));
+    top: calc(58px + var(--sat)); /* below the docked hand preview */
     left: 50%;
     transform: translateX(-50%);
     width: max-content;
@@ -742,6 +778,7 @@ button, .btn, .mode-card, .blessing-choice, .style-card, .mini-card,
     z-index: 6;
     pointer-events: none;
   }
+  #toasts { top: calc(96px + var(--sat)); }
   /* blessings collapse to icon-only chips and dock bottom-center, clear of
      the hand — stacked in the left column they pushed panels over the cards */
   .blessings-panel {
@@ -758,9 +795,40 @@ button, .btn, .mode-card, .blessing-choice, .style-card, .mini-card,
   .blessing-chip .b-nm { display: none; }
   .hud-topright { font-size: 1.1rem; gap: 8px; padding: 0 3px; }
   .stat-chip { font-size: 1rem; padding: 0 2px; }
-  .btn-play { font-size: 0.7rem; padding: 2px 8px; }
-  .btn-discard { font-size: 0.6rem; padding: 2px 6px; }
-  .btn-small { font-size: 0.5rem; }
+  .btn-play { font-size: 0.7rem; padding: 4px 10px; }
+  .btn-discard { font-size: 0.6rem; padding: 4px 8px; }
+  .btn-small { font-size: 0.5rem; padding: 6px 8px; } /* real touch targets */
+  #btn-pause, #btn-hud-help { min-width: 42px; min-height: 20px; }
+  .setting-control input[type=range]::-webkit-slider-thumb { width: 22px; height: 30px; margin-top: -9px; }
+
+  /* touch has no hover: neutralize the sticky raised/gold states */
+  .btn:hover:not(:disabled) { transform: none; filter: none; }
+  .mode-card:hover, .style-card:hover, .blessing-choice:hover, .shop-item:hover:not(.sold) {
+    transform: none;
+    filter: none;
+    border-image-source: var(--uiPlate);
+  }
+  .blessing-choice:hover { border-image-source: var(--uiPlatePurple); }
+  .shop-item:hover:not(.sold) { border-image-source: var(--uiPlatePurple); } /* its base frame is purple, not plain */
+  .style-card.active-style { border-image-source: var(--uiPlateGold); }
+
+  /* landscape phone menu: title left, buttons right — a column doesn't fit 375px */
+  #screen-menu .menu-center {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas: 'title buttons' 'cur buttons' 'footer buttons';
+    align-items: center;
+    column-gap: 4vw;
+    padding: 0 2vw;
+  }
+  #screen-menu .title-wrap { grid-area: title; }
+  #screen-menu .menu-buttons { grid-area: buttons; gap: 3px; }
+  #screen-menu .menu-currencies { grid-area: cur; justify-content: center; font-size: 1rem; }
+  #screen-menu .menu-footer { grid-area: footer; font-size: 0.85rem; }
+  #screen-menu .game-title { font-size: clamp(1.4rem, 4.5vw, 2.2rem); animation: none; }
+  #screen-menu .title-sub { font-size: 0.85rem; margin-top: 8px; }
+  #screen-menu .btn-big { min-width: 210px; font-size: 0.6rem; padding: 2px 8px; border-width: 12px; }
+  #screen-menu .btn-note { display: none; }
   /* selection preview docks top-center instead of floating over the hand */
   .hud-preview { bottom: auto; top: calc(8px + var(--sat)); font-size: 1rem; padding: 0 5px; }
   #tooltip { max-width: 210px; font-size: 0.95rem; }
@@ -772,8 +840,8 @@ button, .btn, .mode-card, .blessing-choice, .style-card, .mini-card,
   /* Sanctum on phones: fewer, larger cards in a scrolling grid beside a
      compact detail panel — instead of 13 unreadable columns */
   .sanctum-layout { flex-direction: row; gap: 4px; align-items: stretch; }
-  .sanctum-left { width: 54vw; max-height: 94vh; }
-  .sanctum-right { width: 42vw; min-height: 0; max-height: 94vh; }
+  .sanctum-left { width: 54vw; max-height: 94vh; max-height: 94dvh; }
+  .sanctum-right { width: 42vw; min-height: 0; max-height: 94vh; max-height: 94dvh; }
   .sanctum-sub { display: none; }
   .sanctum-cur { font-size: 1.1rem; margin-bottom: 6px; }
   .card-grid {

@@ -5,10 +5,11 @@ HP.ui = (function () {
   const U = HP.util, C = HP.cards;
   const $ = id => document.getElementById(id);
 
-  const SCREENS = ['menu', 'modes', 'sanctum', 'styles', 'stats', 'settings', 'hud', 'roundend', 'runend', 'pause', 'shop'];
+  const SCREENS = ['menu', 'modes', 'sanctum', 'styles', 'stats', 'settings', 'hud', 'roundend', 'runend', 'pause', 'shop', 'help'];
   let current = 'menu';
   let settingsReturn = 'menu';
   let sanctumReturn = 'menu';
+  let helpReturn = 'menu';
   let selectedSanctumCard = null;
 
   const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
@@ -56,6 +57,16 @@ HP.ui = (function () {
     $('menu-essence').textContent = U.fmt(m.essence);
     $('menu-gold').textContent = U.fmt(m.gold);
     $('menu-hint').textContent = U.pick(HINTS);
+    // saved run waiting? offer to continue it
+    const pr = HP.game.pendingRun();
+    const cb = $('btn-continue');
+    if (pr) {
+      cb.classList.remove('hidden');
+      const mode = C.MODES[pr.mode];
+      cb.innerHTML = `⟳ CONTINUE RUN <span class="btn-note">${mode ? mode.name : ''} · round ${pr.round}</span>`;
+    } else {
+      cb.classList.add('hidden');
+    }
   }
 
   // ---------- modes ----------
@@ -67,14 +78,25 @@ HP.ui = (function () {
       const r = HP.save.meta.records[key];
       const d = document.createElement('div');
       d.className = 'mode-card';
+      let extra = '';
+      if (key === 'daily') {
+        const dd = HP.save.meta.daily;
+        const today = new Date().toISOString().slice(0, 10);
+        if (dd && dd.date === today) {
+          extra = `<div class="mode-record">today: ${dd.won ? 'CLEARED ☩' : 'best round ' + dd.bestRound} · attempt ${dd.attempts}</div>`;
+        }
+      }
       d.innerHTML = `
         <div class="mode-icon">${m.icon}</div>
         <div class="mode-name">${m.name}</div>
         <div class="mode-desc">${m.desc}</div>
-        <div class="mode-record">best round: ${r.bestRound} · wins: ${r.wins}</div>`;
+        <div class="mode-record">best round: ${r.bestRound} · wins: ${r.wins}</div>` + extra;
       d.addEventListener('click', () => {
         HP.audio.sfx('click');
-        HP.game.startRun(key);
+        const begin = () => HP.game.startRun(key);
+        if (HP.game.pendingRun()) {
+          showModal('A saved run is waiting. Starting a new one discards it. Begin anyway?', begin);
+        } else begin();
       });
       grid.appendChild(d);
     }
@@ -263,6 +285,24 @@ HP.ui = (function () {
       row.appendChild(d);
     }
     $('stats-content').appendChild(row);
+
+    // feats
+    const feats = m.feats || {};
+    const unlocked = C.FEATS.filter(f => feats[f.id]).length;
+    const ft = document.createElement('div');
+    ft.className = 'stats-section-title';
+    ft.textContent = `FEATS (${unlocked}/${C.FEATS.length})`;
+    $('stats-content').appendChild(ft);
+    const fg = document.createElement('div');
+    fg.className = 'feats-grid';
+    for (const f of C.FEATS) {
+      const got = !!feats[f.id];
+      const d2 = document.createElement('div');
+      d2.className = 'feat-box' + (got ? ' got' : '');
+      d2.innerHTML = `<div class="feat-name">${got ? '☩' : '·'} ${f.name}</div><div class="feat-desc">${f.desc}</div>`;
+      fg.appendChild(d2);
+    }
+    $('stats-content').appendChild(fg);
   }
 
   // ---------- settings ----------
@@ -313,6 +353,27 @@ HP.ui = (function () {
     sliderRow('SFX', 'sfx');
     toggleRow('CRT SCANLINES', 'crt', v => $('crt-overlay').classList.toggle('off', !v));
     toggleRow('SCREEN SHAKE', 'shake');
+
+    // game speed
+    const sp = document.createElement('div');
+    sp.className = 'setting-row';
+    sp.innerHTML = '<span class="setting-label">GAME SPEED</span>';
+    const spSeg = document.createElement('span');
+    spSeg.className = 'seg-group';
+    [['1', 'NORMAL'], ['1.5', 'SWIFT'], ['2', 'BLITZ']].forEach(([val, name]) => {
+      const b = document.createElement('button');
+      b.className = 'seg-btn' + (String(s.speed) === val ? ' on' : '');
+      b.textContent = name;
+      b.addEventListener('click', () => {
+        s.speed = parseFloat(val);
+        HP.save.save();
+        HP.audio.sfx('click');
+        renderSettings();
+      });
+      spSeg.appendChild(b);
+    });
+    sp.appendChild(spSeg);
+    rows.appendChild(sp);
 
     // pixelation
     const d = document.createElement('div');
@@ -369,25 +430,42 @@ HP.ui = (function () {
     $('hud-essence').textContent = U.fmt(HP.save.meta.essence + run.pendingEssence);
     $('hud-gold').textContent = U.fmt(HP.save.meta.gold + run.pendingGold);
 
+    // hands chip pulses on the final hand
+    $('hud-hands').parentElement.classList.toggle('last-hand', run.handsLeft === 1);
+
+    // blessings + run relics share the chip strip (both tap/hover for details)
     const bp = $('hud-blessings');
-    if (run.blessings.length) {
+    const chips = run.blessings.map(bid => {
+      const b = C.BLESSINGS.find(x => x.id === bid);
+      if (!b) return ''; // an old save may hold a blessing id we renamed
+      return `<div class="blessing-chip" data-name="${b.icon} ${b.name}" data-desc="${b.desc}"><span class="b-ic">${b.icon}</span><span class="b-nm"> ${b.name}</span></div>`;
+    }).concat(run.relics.map(rid => {
+      const it = C.SHOP_ITEMS.find(x => x.id === rid);
+      if (!it) return '';
+      return `<div class="blessing-chip relic-chip" data-name="${it.icon} ${it.name}" data-desc="${it.desc}"><span class="b-ic">${it.icon}</span><span class="b-nm"> ${it.name}</span></div>`;
+    }));
+    if (chips.length) {
       bp.classList.remove('hidden');
-      bp.innerHTML = run.blessings.map(bid => {
-        const b = C.BLESSINGS.find(x => x.id === bid);
-        return `<div class="blessing-chip" data-name="${b.icon} ${b.name}" data-desc="${b.desc}"><span class="b-ic">${b.icon}</span><span class="b-nm"> ${b.name}</span></div>`;
-      }).join('');
+      bp.innerHTML = chips.join('');
     } else {
       bp.classList.add('hidden');
     }
+  }
+
+  function finalHandCue() {
+    toast('✚ FINAL HAND');
+    HP.audio.sfx('boss');
   }
 
   function updateButtons(run) {
     if (!run) return;
     const sel = run.selected.size;
     $('btn-playhand').disabled = sel === 0 || HP.game.busy;
+    $('btn-playhand').textContent = sel > 0 ? `PLAY ${sel}/${HP.game.maxPlay()}` : 'PLAY HAND';
     $('btn-discard').disabled = sel === 0 || run.discardsLeft <= 0 || HP.game.busy;
     $('btn-discard').textContent = `DISCARD (${run.discardsLeft})`;
     $('btn-sort').textContent = 'SORT: ' + run.sort.toUpperCase();
+    $('btn-clear').classList.toggle('hidden', sel === 0);
   }
 
   function updatePreview(run) {
@@ -399,10 +477,13 @@ HP.ui = (function () {
       $('preview-nums').textContent = 'the veil hides your hand';
       return;
     }
-    const ev = HP.game.evalSelection();
+    const ev = HP.game.predictSelection();
     if (!ev) { el.classList.add('hidden'); return; }
     $('preview-name').textContent = ev.name;
-    $('preview-nums').innerHTML = `base <b class="c">${ev.chips}</b> × <b class="m">${Math.round(ev.mult * 100) / 100}</b>`;
+    const clears = run.score + ev.total >= run.target;
+    $('preview-nums').innerHTML =
+      `base <b class="c">${ev.chips}</b> × <b class="m">${Math.round(ev.mult * 100) / 100}</b>` +
+      ` → <b class="t${clears ? ' clears' : ''}">${U.fmt(ev.total)}</b>${clears ? ' ✦' : ''}`;
   }
   function hidePreview() { $('hud-preview').classList.add('hidden'); }
 
@@ -451,10 +532,11 @@ HP.ui = (function () {
     addRow('round score', U.fmt(run.score), 0);
     addRow('⟠ essence earned', '+' + rewards.essence, 1);
     addRow('● gold earned', '+' + rewards.gold, 2);
-    if (rewards.interest > 0) addRow('● of which interest (1 per 10● held, max 5)', '+' + rewards.interest, 3);
+    if (rewards.interest > 0) addRow('● of which interest (1 per 20● held, max 10)', '+' + rewards.interest, 3);
 
     const bs = $('blessing-section');
     const nextBtn = $('btn-nextround');
+    let done = false; // one blessing, one continue — no matter how events arrive
     if (choices.length) {
       bs.classList.remove('hidden');
       nextBtn.classList.add('hidden');
@@ -465,15 +547,22 @@ HP.ui = (function () {
         d.className = 'blessing-choice';
         d.innerHTML = `<div class="b-icon">${b.icon}</div><div class="b-name">${b.name}</div><div class="b-desc">${b.desc}</div>`;
         d.addEventListener('click', () => {
+          if (done) return;
+          done = true;
           onBless(b.id);
           onContinue();
-        }, { once: true });
+        });
         bc.appendChild(d);
       }
     } else {
       bs.classList.add('hidden');
       nextBtn.classList.remove('hidden');
-      nextBtn.onclick = () => { HP.audio.sfx('click'); onContinue(); };
+      nextBtn.onclick = () => {
+        if (done) return;
+        done = true;
+        HP.audio.sfx('click');
+        onContinue();
+      };
     }
   }
 
@@ -486,18 +575,66 @@ HP.ui = (function () {
     $('runend-flavor').textContent = U.pick(win ? WIN_FLAVOR : LOSE_FLAVOR);
     const rows = $('runend-rows');
     rows.innerHTML = '';
-    const addRow = (label, val, i) => {
+    const addRow = (label, val, i, cls) => {
       const d = document.createElement('div');
-      d.className = 'reward-row';
-      d.style.animationDelay = (i * 0.16) + 's';
+      d.className = 'reward-row' + (cls ? ' ' + cls : '');
+      d.style.animationDelay = (i * 0.13) + 's';
       d.innerHTML = `<span>${label}</span><span class="rv">${val}</span>`;
       rows.appendChild(d);
     };
     const cleared = win ? run.round : run.round - 1;
     addRow('rounds cleared', Math.max(0, cleared), 0);
     addRow('total scored', U.fmt(run.totalScored), 1);
-    addRow('⟠ essence banked', '+' + run.bankedEssence, 2);
-    addRow('● gold banked', '+' + run.bankedGold, 3);
+    const isRecord = run.stats.bestHand > 0 && run.stats.bestHand >= HP.save.meta.totals.bestHand;
+    addRow('best hand', U.fmt(run.stats.bestHand) + (isRecord ? ' ★ NEW BEST' : ''), 2, isRecord ? 'levelup-row' : '');
+    addRow('hands played', run.stats.handsPlayed, 3);
+    if (run.stats.levelUps > 0) addRow('✦ cards leveled', run.stats.levelUps, 4, 'levelup-row');
+    addRow('⟠ essence banked', '+' + run.bankedEssence, 5);
+    addRow('● gold banked', '+' + run.bankedGold, 6);
+    if (!win && run.boss) {
+      const pct = Math.min(99, Math.round(run.score / run.target * 100));
+      addRow(`felled by ${run.boss.name}`, pct + '% of target', 7);
+    } else if (!win && run.target > 0) {
+      const pct = Math.min(99, Math.round(run.score / run.target * 100));
+      addRow('final round progress', pct + '% of target', 7);
+    }
+  }
+
+  // ---------- help: how to play + hand values ----------
+  function renderHelp() {
+    const el = $('help-content');
+    let html = '<div class="stats-section-title">THE LOOP</div>' +
+      '<p class="help-p">Select up to <b>5 cards</b> and play them as a poker hand. Beat the round\'s ' +
+      '<b>chip target</b> before your hands run out. <b>Drag</b> cards sideways to set the order — ' +
+      'scoring runs left to right. Clear rounds to earn <span class="cur-essence">⟠ essence</span> and ' +
+      '<span class="cur-gold">● gold</span>, take a blessing, and shop at The Reliquary.</p>';
+
+    html += '<div class="stats-section-title">THE FOUR SUITS</div><table class="records-table">';
+    for (const su of C.SUITS) {
+      const info = C.SUIT_INFO[su];
+      html += `<tr><td style="color:${info.color}">${info.icon} ${info.name}</td>` +
+        `<td>${info.theme}</td><td>${C.abilityDesc(su + '7', 1).replace(' when scored', '')}</td></tr>`;
+    }
+    html += '</table><p class="help-p">Every card triggers its ability when scored, and earns ' +
+      '<b>XP forever</b> — losing a run loses nothing. Cards <b style="color:var(--arise)">AWAKEN</b> at ' +
+      'Lv.5 (effect ×1.5) and <b style="color:var(--gold)">TRANSCEND</b> at Lv.10 (×2). ' +
+      'Face cards and aces are 1.5× stronger. Infuse ⟠ essence in the Sanctum to level cards directly.</p>';
+
+    html += '<div class="stats-section-title">HAND VALUES (base chips × mult)</div><table class="records-table">';
+    for (const key of Object.keys(HP.poker.HANDS)) {
+      const h = HP.poker.HANDS[key];
+      html += `<tr><td>${h.name}</td><td><b class="c" style="color:var(--chip-blue)">${h.chips}</b></td>` +
+        `<td><b style="color:var(--mult-red)">× ${h.mult}</b></td></tr>`;
+    }
+    html += '</table><p class="help-p">Your played cards\' rank chips (2–10 face value, J/Q/K = 10, A = 11) ' +
+      'and abilities are added on top. Kickers never downgrade a made hand.</p>';
+    el.innerHTML = html;
+  }
+
+  function openHelp(from) {
+    helpReturn = from;
+    renderHelp();
+    showScreen('help');
   }
 
   // ---------- shop (The Reliquary) ----------
@@ -626,6 +763,7 @@ HP.ui = (function () {
     $('btn-settings-back').addEventListener('click', () => {
       sfxClick();
       if (settingsReturn === 'pause') showScreen('pause');
+      else if (settingsReturn === 'shop' && HP.game.run && HP.game.run.shop) showShop(HP.game.run);
       else { refreshMenu(); showScreen('menu'); }
     });
 
@@ -638,15 +776,73 @@ HP.ui = (function () {
         HP.scene.applySize();
         HP.scene.styleChanged();
         renderSettings();
+        settingsReturn = 'menu';
+        if (HP.game.run) HP.game.toMenu(); // a wiped save must not keep an active run re-banking into it
         toast('all progress erased');
       });
     });
+
+    // menu: continue a saved run
+    $('btn-continue').addEventListener('click', () => {
+      sfxClick();
+      if (!HP.game.resumeRun()) {
+        toast('saved run could not be restored');
+        refreshMenu();
+      }
+    });
+
+    // help
+    $('btn-help').addEventListener('click', () => { sfxClick(); openHelp('menu'); });
+    $('btn-pause-help').addEventListener('click', () => { sfxClick(); openHelp('pause'); });
+    $('btn-hud-help').addEventListener('click', () => { sfxClick(); openHelp('hud'); });
+    $('btn-help-back').addEventListener('click', () => {
+      sfxClick();
+      if (helpReturn === 'pause') showScreen('pause');
+      else if (helpReturn === 'hud') { showScreen('hud'); updateHUD(HP.game.run); }
+      else { refreshMenu(); showScreen('menu'); }
+    });
+
+    // hud: deck peek — which cards are still in the draw pile
+    $('deck-chip').addEventListener('click', () => {
+      const dp = $('deck-peek');
+      if (!dp.classList.contains('hidden')) { dp.classList.add('hidden'); return; }
+      const run = HP.game.run;
+      if (!run) return;
+      sfxClick();
+      const order = C.RANKS.slice().reverse();
+      dp.innerHTML = C.SUITS.map(su => {
+        const left = order.filter(r => run.deck.includes(su + r));
+        const info = C.SUIT_INFO[su];
+        return `<div class="peek-row"><span class="peek-suit" style="color:${info.color}">${info.icon}</span>` +
+          `<span class="peek-ranks">${left.length ? left.join(' ') : '—'}</span></div>`;
+      }).join('');
+      dp.classList.remove('hidden');
+    });
+    // any tap elsewhere closes the peek
+    window.addEventListener('pointerdown', e => {
+      if (!(e.target instanceof Element)) return;
+      if (!e.target.closest('#deck-peek') && !e.target.closest('#deck-chip')) {
+        $('deck-peek').classList.add('hidden');
+      }
+    }, true);
 
     // hud
     $('btn-playhand').addEventListener('click', () => HP.game.playHand());
     $('btn-discard').addEventListener('click', () => HP.game.discard());
     $('btn-sort').addEventListener('click', () => HP.game.toggleSort());
+    $('btn-clear').addEventListener('click', () => HP.game.clearSelection());
     $('btn-pause').addEventListener('click', () => { sfxClick(); showScreen('pause'); });
+
+    // touch: stat chips + currency readouts explain themselves on tap
+    for (const sel of ['.hud-bottomleft', '.hud-topright', '.menu-currencies']) {
+      const host = document.querySelector(sel);
+      if (!host) continue;
+      host.addEventListener('pointerdown', e => {
+        if (!(e.target instanceof Element)) return;
+        const el = e.target.closest('[data-tt]');
+        if (el) showTooltip(`<div class="tt-body">${el.dataset.tt}</div>`);
+      });
+    }
 
     // pause
     $('btn-resume').addEventListener('click', () => { sfxClick(); showScreen('hud'); updateHUD(HP.game.run); });
@@ -658,6 +854,7 @@ HP.ui = (function () {
     // shop
     $('btn-reroll').addEventListener('click', () => HP.game.rerollShop());
     $('btn-shop-continue').addEventListener('click', () => { sfxClick(); HP.game.leaveShop(); });
+    $('btn-shop-settings').addEventListener('click', () => { sfxClick(); settingsReturn = 'shop'; renderSettings(); showScreen('settings'); });
     $('btn-altar').addEventListener('click', () => {
       sfxClick();
       sanctumReturn = 'shop';
@@ -681,8 +878,11 @@ HP.ui = (function () {
         if ($('screen-modal').classList.contains('active')) { hideModal(); return; }
         if (current === 'hud' && HP.game.run) showScreen('pause');
         else if (current === 'pause') { showScreen('hud'); updateHUD(HP.game.run); }
+        else if (current === 'shop' && HP.game.run) { settingsReturn = 'shop'; renderSettings(); showScreen('settings'); }
         else if (current === 'settings' && settingsReturn === 'pause') showScreen('pause');
+        else if (current === 'settings' && settingsReturn === 'shop' && HP.game.run && HP.game.run.shop) showShop(HP.game.run);
         else if (current === 'sanctum' && sanctumReturn === 'shop' && HP.game.run && HP.game.run.shop) showShop(HP.game.run);
+        else if (current === 'help') $('btn-help-back').click();
         else if (['modes', 'sanctum', 'styles', 'stats', 'settings'].includes(current)) { refreshMenu(); showScreen('menu'); }
       }
       if (e.key === 'Enter' && current === 'hud' && !$('btn-playhand').disabled) HP.game.playHand();
@@ -697,6 +897,7 @@ HP.ui = (function () {
     init, showScreen, showModal, toast, refreshMenu,
     updateHUD, updateButtons, updatePreview, hidePreview,
     showScoring, setChips, setMult, showTotal, hideScoring,
-    roundEnd, runEnd, showShop,
+    roundEnd, runEnd, showShop, finalHandCue,
+    currentScreen: () => current,
   };
 })();

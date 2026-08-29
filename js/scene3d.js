@@ -18,6 +18,10 @@ HP.scene = (function () {
 
   const CARD_W = 1.3, CARD_H = 1.3 * 4 / 3;
   const TILT = -0.46; // resting x-tilt of cards on the table
+  // one geometry for every card face/back ever made — plane geometry never
+  // varies, and per-card geometries were leaking GPU buffers each deal
+  let CARD_GEO = null;
+  const cardGeo = () => (CARD_GEO || (CARD_GEO = new THREE.PlaneGeometry(CARD_W, CARD_H)));
 
   // touch devices with small screens get bigger cards
   function isMobileView() {
@@ -160,7 +164,7 @@ HP.scene = (function () {
     const backTex = HP.art.getBackTexture(activeStyle());
     for (let i = 0; i < 3; i++) {
       const m = new THREE.Mesh(
-        new THREE.PlaneGeometry(CARD_W, CARD_H),
+        cardGeo(),
         new THREE.MeshLambertMaterial({ map: backTex })
       );
       m.rotation.x = -Math.PI / 2 + 0.06;
@@ -215,13 +219,13 @@ HP.scene = (function () {
     root.scale.setScalar(cardScale());
 
     const front = new THREE.Mesh(
-      new THREE.PlaneGeometry(CARD_W, CARD_H),
+      cardGeo(),
       new THREE.MeshLambertMaterial({ map: HP.art.getCardTexture(id, style, cardLv(id)), transparent: true })
     );
     front.castShadow = true;
     front.userData.cardId = id;
     const back = new THREE.Mesh(
-      new THREE.PlaneGeometry(CARD_W, CARD_H),
+      cardGeo(),
       new THREE.MeshLambertMaterial({ map: HP.art.getBackTexture(style), transparent: true })
     );
     back.rotation.y = Math.PI;
@@ -358,6 +362,7 @@ HP.scene = (function () {
         moveTo(e, e.home, 0.28, 0);
       }
     }
+    repositionBadges();
     await U.wait(newIds.length * 70 + 420);
   }
 
@@ -389,6 +394,16 @@ HP.scene = (function () {
     const row = Math.max(0, handOrder.indexOf(id)) % 2;
     spr.position.set(0, CARD_H / 2 + 0.26 + row * 0.4, 0.15);
     return spr;
+  }
+
+  // badges alternate two heights by hand index so neighbors never overlap;
+  // reorders change indices, so re-derive rows from the live order
+  function repositionBadges() {
+    const ids = handIdsInOrder();
+    ids.forEach((id, i) => {
+      const e = cards.get(id);
+      if (e && e.badge) e.badge.position.y = CARD_H / 2 + 0.26 + (i % 2) * 0.4;
+    });
   }
 
   function clearBadge(e) {
@@ -517,7 +532,7 @@ HP.scene = (function () {
     const spinZ = 1.5 + Math.random() * 2.5;
     const spinX = (Math.random() - 0.5) * 1.6;
     const dx = -(8.5 + Math.random() * 2.5);
-    U.tween({
+    e.moveTw = [U.tween({ // registered owner: nothing else may move this card now
       dur: 0.55, delay, ease: 'inCubic',
       onUpdate: t => {
         e.root.position.x = from.x + dx * t;
@@ -526,8 +541,9 @@ HP.scene = (function () {
         e.root.rotation.x = r0.x + spinX * t;
         setCardOpacity(e, 1 - Math.max(0, (t - 0.5) / 0.5));
       },
-      onComplete: () => removeCard(id),
-    });
+      // only remove OUR entry — a same-id card may have been redealt meanwhile
+      onComplete: () => { if (cards.get(id) === e) removeCard(id); },
+    })];
   }
 
   async function discardPlayed() {
@@ -561,12 +577,14 @@ HP.scene = (function () {
     if (animated) {
       let i = 0;
       for (const [id, e] of cards) {
+        e.state = 'gone'; // stops the idle loop re-lighting the awakened glow mid-fade
+        clearBadge(e);
         if (e.moveTw) { e.moveTw.forEach(U.killTween); e.moveTw = null; }
         const from = e.root.position.clone();
         const vx = from.x * 1.4 + (Math.random() - 0.5) * 2;
         const spin = (Math.random() - 0.5) * 5;
         const r0 = e.root.rotation.z;
-        U.tween({
+        e.moveTw = [U.tween({
           dur: 0.55, delay: i * 0.03, ease: 'inCubic',
           onUpdate: t => {
             e.root.position.x = from.x + vx * t;
@@ -574,8 +592,8 @@ HP.scene = (function () {
             e.root.rotation.z = r0 + spin * t;
             setCardOpacity(e, 1 - Math.max(0, (t - 0.55) / 0.45));
           },
-          onComplete: () => removeCard(id),
-        });
+          onComplete: () => { if (cards.get(id) === e) removeCard(id); },
+        })];
         i++;
       }
     } else {
@@ -687,7 +705,7 @@ HP.scene = (function () {
         beam.material.opacity = t < 0.3 ? t / 0.3 * 0.5 : 0.5 * (1 - (t - 0.3) / 0.7);
         beam.scale.x = 0.4 + t * 0.9;
       },
-      onComplete: () => { scene.remove(beam); beam.material.dispose(); },
+      onComplete: () => { scene.remove(beam); beam.material.dispose(); beam.geometry.dispose(); },
     });
     burst(pos, color, 20, 1.4);
     ringWave(pos, color);
@@ -743,18 +761,24 @@ HP.scene = (function () {
     showcase = [];
   }
 
+  let camTw = []; // camera tween ownership: menu<->game toggles must not stack
+  function moveCamera(base, look, dur) {
+    camTw.forEach(U.killTween);
+    camTw = [
+      U.tweenProps(camBase, base, { dur, ease: 'inOutSine' }),
+      U.tweenProps(camLook, look, { dur, ease: 'inOutSine' }),
+    ];
+  }
   function menuMode() {
     mode = 'menu';
     clearAll(false);
     buildShowcase();
-    U.tweenProps(camBase, { x: 0, y: 5.4, z: 10.4 }, { dur: 0.8, ease: 'inOutSine' });
-    U.tweenProps(camLook, { x: 0, y: 2.7, z: 0 }, { dur: 0.8, ease: 'inOutSine' });
+    moveCamera({ x: 0, y: 5.4, z: 10.4 }, { x: 0, y: 2.7, z: 0 }, 0.8);
   }
   function gameMode() {
     mode = 'game';
     clearShowcase();
-    U.tweenProps(camBase, { x: 0, y: 7.6, z: 10.2 }, { dur: 0.7, ease: 'inOutSine' });
-    U.tweenProps(camLook, { x: 0, y: 0.2, z: 1.6 }, { dur: 0.7, ease: 'inOutSine' });
+    moveCamera({ x: 0, y: 7.6, z: 10.2 }, { x: 0, y: 0.2, z: 1.6 }, 0.7);
   }
 
   function styleChanged() {
@@ -802,10 +826,18 @@ HP.scene = (function () {
 
   function onPointerDown(ev) {
     if (!interactive) return;
+    // one finger owns the hand at a time — but a press whose end event never
+    // arrived (pen left range, browser hiccup) must not wedge input forever
+    if (pressCand || drag) {
+      const stale = pressCand && (ev.pointerId === pressCand.pid || performance.now() - pressCand.t > 8000);
+      if (!stale) return;
+      clearTimeout(longPressTimer);
+      drag = null; pressCand = null;
+    }
     setPointer(ev);
     const id = raycastCard();
     if (!id) return;
-    pressCand = { id, x: ev.clientX, y: ev.clientY, moved: 0, touch: ev.pointerType === 'touch' };
+    pressCand = { id, pid: ev.pointerId, t: performance.now(), x: ev.clientX, y: ev.clientY, moved: 0, touch: ev.pointerType === 'touch' };
     if (pressCand.touch) { // long-press = inspect (tooltip), release hides it
       clearTimeout(longPressTimer);
       longPressTimer = setTimeout(() => {
@@ -849,11 +881,13 @@ HP.scene = (function () {
       for (const oid of handIdsInOrder()) {
         if (oid !== drag.id) moveTo(cards.get(oid), cards.get(oid).home, 0.16, 0);
       }
+      repositionBadges(); // keep the alternating badge rows matching the new order
       HP.audio.sfx('hover');
     }
   }
 
   function onPointerMove(ev) {
+    if (pressCand && ev.pointerId !== pressCand.pid) return; // ignore second fingers
     setPointer(ev);
     if (pressCand && !drag && interactive) {
       const dx = ev.clientX - pressCand.x, dy = ev.clientY - pressCand.y;
@@ -866,12 +900,21 @@ HP.scene = (function () {
     if (drag) updateDrag();
   }
 
+  function settleDraggedCard(id, ease) {
+    const e = cards.get(id);
+    // the hand may have been played/cleared while the finger was down — only
+    // a card still in 'hand' may be tweened back to a hand slot
+    if (e && e.state === 'hand') {
+      computeHomes();
+      if (e.home) moveTo(e, e.home, 0.22, 0, ease);
+    }
+  }
+
   function onPointerUp(ev) {
+    if (pressCand && ev.pointerId !== pressCand.pid) return;
     clearTimeout(longPressTimer);
     if (drag) {
-      const e = cards.get(drag.id);
-      computeHomes();
-      if (e && e.home) moveTo(e, e.home, 0.22, 0, 'outBack');
+      settleDraggedCard(drag.id, 'outBack');
       const order = handIdsInOrder();
       drag = null;
       pressCand = null;
@@ -889,11 +932,10 @@ HP.scene = (function () {
 
   // system stole the pointer (gesture, notification) — abort, never click
   function onPointerCancel(ev) {
+    if (pressCand && ev.pointerId !== pressCand.pid) return;
     clearTimeout(longPressTimer);
     if (drag) {
-      const e = cards.get(drag.id);
-      computeHomes();
-      if (e && e.home) moveTo(e, e.home, 0.22, 0);
+      settleDraggedCard(drag.id);
       if (api.onReorder) api.onReorder(handIdsInOrder());
       drag = null;
     }
@@ -907,6 +949,7 @@ HP.scene = (function () {
       if (hoveredId) { hoveredId = null; document.body.classList.remove('cur-point'); if (api.onHoverChange) api.onHoverChange(null); }
       return;
     }
+    if (pointer.x < -1.5) return; // pointer parked after touch: nothing to hover, skip the raycast
     const id = raycastCard();
     if (id !== hoveredId) {
       hoveredId = id;
