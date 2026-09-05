@@ -144,21 +144,30 @@ HP.cards = (function () {
   ];
 
   // ---- shop wares (The Reliquary, between rounds; priced in gold) ----
+  // Three categories; every shop rolls 2 META + 2 RUN + 1 TACTICAL so a visit
+  // always has something permanent, something for this run, and a cheap play.
+  // Round-1 income (~8g) affords exactly one tactical or the tithe box.
   const SHOP_ITEMS = [
-    { id: 'tithe',      icon: '⟠', name: 'TITHE BOX',        desc: '+8 essence, banked instantly',           cost: 10 },
-    { id: 'chest',      icon: '✦', name: 'RELIQUARY CHEST',  desc: '+22 essence, banked instantly',          cost: 34 },
-    { id: 'scroll',     icon: '✎', name: 'BLESSED SCROLL',   desc: '+80 XP to a random card',                cost: 18 },
-    { id: 'tome',       icon: '❦', name: 'GILDED TOME',      desc: '+50 XP to 3 random cards',               cost: 35 },
-    { id: 'sigilhigh',  icon: '▲', name: 'ASCENDANT SIGIL',  desc: '+100 XP to your highest-level card',     cost: 25 },
-    { id: 'sigillow',   icon: '♁', name: "SHEPHERD'S SIGIL", desc: '+60 XP to each of your 3 lowest cards',  cost: 20 },
-    { id: 'miracle',    icon: '✧', name: 'SMALL MIRACLE',    desc: 'your highest card gains a full level',   cost: 45 },
-    { id: 'candle',     icon: '❋', name: 'VOTIVE CANDLE',    desc: '+30 base chips on every hand this run',  cost: 22 },
-    { id: 'horn',       icon: '♪', name: 'WAR HYMN',         desc: '+2 base mult on every hand this run',    cost: 30 },
-    { id: 'chalice',    icon: '✚', name: 'CHALICE OF VIGOR', desc: '+1 hand every round this run',           cost: 38 },
-    { id: 'censer',     icon: '⟲', name: 'CENSER OF RENEWAL',desc: '+1 discard every round this run',        cost: 26 },
-    { id: 'gauntlet',   icon: '▤', name: 'REACHING GAUNTLET',desc: '+1 hand size this run',                  cost: 45 },
-    { id: 'favor',      icon: '☩', name: "SAINT'S FAVOR",    desc: 'gain a random blessing',                 cost: 40 },
-    { id: 'indulgence', icon: '✟', name: 'INDULGENCE',       desc: "next round's chip target −15%",          cost: 15 },
+    // META — permanent progression (essence / XP)
+    { id: 'tithe',      cat: 'meta', icon: '⟠', name: 'TITHE BOX',        desc: '+8 essence, banked instantly',             cost: 8 },
+    { id: 'chest',      cat: 'meta', icon: '✦', name: 'RELIQUARY CHEST',  desc: '+25 essence, banked instantly',            cost: 30 },
+    { id: 'scroll',     cat: 'meta', icon: '✎', name: 'BLESSED SCROLL',   desc: '+100 XP to a random card',                 cost: 16 },
+    { id: 'tome',       cat: 'meta', icon: '❦', name: 'GILDED TOME',      desc: '+60 XP to 3 random cards',                 cost: 30 },
+    { id: 'sigilhigh',  cat: 'meta', icon: '▲', name: 'ASCENDANT SIGIL',  desc: '+150 XP to your highest-level card',       cost: 26 },
+    { id: 'sigillow',   cat: 'meta', icon: '♁', name: "SHEPHERD'S SIGIL", desc: '+50 XP to each of your 3 lowest cards',    cost: 20 },
+    { id: 'miracle',    cat: 'meta', icon: '✧', name: 'SMALL MIRACLE',    desc: 'your highest card gains a full level',     cost: 40 },
+    // RUN — this run only (shown as relics in the HUD)
+    { id: 'candle',     cat: 'run',  icon: '❋', name: 'VOTIVE CANDLE',    desc: '+40 base chips on every hand this run',    cost: 18 },
+    { id: 'horn',       cat: 'run',  icon: '♪', name: 'WAR HYMN',         desc: '+3 base mult on every hand this run',      cost: 28 },
+    { id: 'chalice',    cat: 'run',  icon: '✚', name: 'CHALICE OF VIGOR', desc: '+1 hand every round this run',             cost: 32 },
+    { id: 'censer',     cat: 'run',  icon: '⟲', name: 'CENSER OF RENEWAL',desc: '+1 discard every round this run',          cost: 20 },
+    { id: 'gauntlet',   cat: 'run',  icon: '▤', name: 'REACHING GAUNTLET',desc: '+1 hand size this run',                    cost: 36 },
+    { id: 'calf',       cat: 'run',  icon: '●', name: 'GOLDEN CALF',      desc: '+1 gold for every card scored this run',   cost: 30 },
+    { id: 'favor',      cat: 'run',  icon: '☩', name: "SAINT'S FAVOR",    desc: 'gain a random blessing',                   cost: 42 },
+    // TACTICAL — cheap one-shots for the coming round
+    { id: 'indulgence', cat: 'tac',  icon: '✟', name: 'INDULGENCE',       desc: "next round's chip target −15%",            cost: 10 },
+    { id: 'beads',      cat: 'tac',  icon: '☨', name: 'PRAYER BEADS',     desc: 'your next hand scores ×1.5',               cost: 14 },
+    { id: 'flask',      cat: 'tac',  icon: '⚱', name: "PILGRIM'S FLASK",  desc: '+1 hand next round',                       cost: 9 },
   ];
 
   // ---- feats (achievements; persistent, each pays 25 gold once) ----
@@ -179,6 +188,9 @@ HP.cards = (function () {
     { id: 'crusader',    name: 'CRUSADER',           desc: 'win a Crusade' },
     { id: 'rited',       name: 'DAILY DEVOTION',     desc: 'win a Daily Rite' },
     { id: 'deepvigil',   name: 'DEEP VIGIL',         desc: 'reach round 15 in Endless' },
+    { id: 'beyond',      name: 'BEYOND THE GATE',    desc: 'continue a won Pilgrimage into Endless' },
+    { id: 'chapelroyal', name: 'HOUSE OF THE LORD',  desc: 'draw a royal flush in the Chapel of Chance' },
+    { id: 'chapelbig',   name: 'PROVIDENCE',         desc: 'win 200+ gold on one Chapel hand' },
   ];
   const FEAT_GOLD = 25;
 

@@ -4,7 +4,7 @@ window.HP = window.HP || {};
 HP.scene = (function () {
   const U = HP.util;
   let renderer, scene, camera, canvas;
-  let tableMesh, motes = [], rays = [], roseMesh;
+  let tableMesh, emblemMesh, motes = [], rays = [], roseMesh;
   let raycaster, pointer = new THREE.Vector2(-2, -2), pointerPx = { x: 0, y: 0 };
   const parallax = { x: 0, y: 0 }; // eases toward pointer; stays centered until real input (touch devices)
   let shakeAmp = 0;
@@ -46,7 +46,21 @@ HP.scene = (function () {
   };
 
   function activeStyle() { return HP.save.meta.styles.active; }
+  function activeTable() { return (HP.save.meta.tables && HP.save.meta.tables.active) || 'cathedral'; }
   function cardLv(id) { return HP.save.card(id).lv; }
+
+  // re-skin the felt + emblem when the player equips a different table
+  function tableChanged() {
+    if (!tableMesh) return;
+    tableMesh.material.map = HP.art.makeTableTexture(activeTable());
+    tableMesh.material.needsUpdate = true;
+    emblemMesh.material.map = HP.art.makeEmblemTexture(activeTable());
+    emblemMesh.material.needsUpdate = true;
+  }
+
+  // the Chapel minigame relabels selection badges ("HOLD") — default is the card ability
+  let badgeLabelFn = null;
+  function setBadgeLabel(fn) { badgeLabelFn = fn; }
 
   // ---------- init ----------
   function init(cv) {
@@ -78,10 +92,8 @@ HP.scene = (function () {
     rim.position.set(-6, 4, -6);
     scene.add(rim);
 
-    // table
-    const tableTex = HP.art.makeTableTexture();
-    tableTex.wrapS = tableTex.wrapT = THREE.RepeatWrapping;
-    tableTex.repeat.set(3, 2);
+    // table (felt palette is a purchasable cosmetic)
+    const tableTex = HP.art.makeTableTexture(activeTable());
     tableMesh = new THREE.Mesh(
       new THREE.PlaneGeometry(34, 22),
       new THREE.MeshLambertMaterial({ map: tableTex })
@@ -92,13 +104,13 @@ HP.scene = (function () {
     scene.add(tableMesh);
 
     // centered halo emblem decal
-    const emblem = new THREE.Mesh(
+    emblemMesh = new THREE.Mesh(
       new THREE.PlaneGeometry(3.4, 3.4),
-      new THREE.MeshBasicMaterial({ map: HP.art.makeEmblemTexture(), transparent: true, opacity: 0.35, depthWrite: false })
+      new THREE.MeshBasicMaterial({ map: HP.art.makeEmblemTexture(activeTable()), transparent: true, opacity: 0.35, depthWrite: false })
     );
-    emblem.rotation.x = -Math.PI / 2;
-    emblem.position.set(0, 0.005, 1.1);
-    scene.add(emblem);
+    emblemMesh.rotation.x = -Math.PI / 2;
+    emblemMesh.position.set(0, 0.005, 1.1);
+    scene.add(emblemMesh);
 
     // rose window
     roseMesh = new THREE.Mesh(
@@ -369,8 +381,8 @@ HP.scene = (function () {
   // small pixel plaque above a selected card: "[+8 CHIPS]" etc.
   function makeBadgeSprite(id) {
     const lv = cardLv(id);
-    const label = HP.cards.shortAbility(id, lv);
-    const color = HP.cards.SUIT_INFO[id[0]].color;
+    const label = badgeLabelFn ? badgeLabelFn(id) : HP.cards.shortAbility(id, lv);
+    const color = badgeLabelFn ? '#ffd97a' : HP.cards.SUIT_INFO[id[0]].color;
     const cv = document.createElement('canvas');
     cv.width = 256; cv.height = 56;
     const ctx = cv.getContext('2d');
@@ -1053,7 +1065,7 @@ HP.scene = (function () {
     init, applySize, syncHand, setSelected, setInteractive,
     playCards, pulseCard, discardPlayed, discardCards, clearAll,
     floatText, floatTextOnCard, cardWorldPos, burst, ringWave, levelUpFx, shake,
-    menuMode, gameMode, styleChanged, refreshCardTexture,
+    menuMode, gameMode, styleChanged, tableChanged, refreshCardTexture, setBadgeLabel,
     get hoveredId() { return hoveredId; },
     _dbg: () => ({ renderer, scene, camera }),
   });

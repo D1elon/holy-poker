@@ -38,6 +38,47 @@ HP.art = (function () {
       accent: '#8a8a9a',
       backA: '#2a2a34', backB: '#17171f', backC: '#e8e8f0',
     },
+    crimson: {
+      name: 'CRIMSON', cost: 220,
+      bg: '#2a0a12', bg2: '#33101a',
+      red: '#ff5a6e', black: '#f4e7c8',
+      frame: '#c0263a', frameDark: '#12040a',
+      accent: '#ffb3bd',
+      backA: '#5c1620', backB: '#2a0a12', backC: '#ff5a6e',
+    },
+    celestial: {
+      name: 'CELESTIAL', cost: 350,
+      bg: '#0c1638', bg2: '#101d48',
+      red: '#ff9fc8', black: '#9fdcff',
+      frame: '#6fb8ff', frameDark: '#060c20',
+      accent: '#e8f4ff',
+      backA: '#16255c', backB: '#0c1638', backC: '#9fdcff',
+    },
+    antique: {
+      name: 'ANTIQUE', cost: 180,
+      bg: '#d9c39a', bg2: '#cbb489',
+      red: '#8a2a1e', black: '#3a2c1a',
+      frame: '#6a4a24', frameDark: '#2a1c0c',
+      accent: '#a67c3c',
+      backA: '#6a4a24', backB: '#4a3418', backC: '#d9c39a',
+    },
+    infernal: {
+      name: 'INFERNAL', cost: 650,
+      bg: '#140a08', bg2: '#1c0e0a',
+      red: '#ff7a1a', black: '#ffd27a',
+      frame: '#ff9a3a', frameDark: '#000000',
+      accent: '#fff0b0',
+      backA: '#3a1608', backB: '#140a08', backC: '#ff7a1a',
+    },
+  };
+
+  // ---- table felts (purchasable on the menu shop) ----
+  const TABLES = {
+    cathedral: { name: 'CATHEDRAL', cost: 0,   base: '#1c1038', a: '#221448', b: '#180d30', trim: '#b98f3e', trimDark: '#5c3f10', emblem: '#ffd97a' },
+    emerald:   { name: 'EMERALD',   cost: 140, base: '#0e3a24', a: '#12462c', b: '#0a2e1c', trim: '#d4b25a', trimDark: '#5c4a10', emblem: '#f0e0a0' },
+    velvet:    { name: 'VELVET',    cost: 260, base: '#3a0c18', a: '#46101e', b: '#2c0812', trim: '#e0b060', trimDark: '#5c3f10', emblem: '#ffd97a' },
+    obsidian:  { name: 'OBSIDIAN',  cost: 420, base: '#101014', a: '#16161c', b: '#0a0a0e', trim: '#ffd97a', trimDark: '#7a5b1e', emblem: '#ffffff' },
+    abyss:     { name: 'ABYSS',     cost: 520, base: '#061a2a', a: '#082234', b: '#041220', trim: '#6fb8ff', trimDark: '#1e4a70', emblem: '#9fdcff' },
   };
 
   const AWAKEN_COLORS = ['', '#a78bfa', '#ffd97a']; // tier 1 purple, tier 2 gold
@@ -256,41 +297,70 @@ HP.art = (function () {
   }
 
   // ---- table felt ----
-  function makeTableTexture() {
+  function makeTableTexture(tableId) {
+    const pal = TABLES[tableId] || TABLES.cathedral;
+    const key = 'table|' + (TABLES[tableId] ? tableId : 'cathedral');
+    if (texCache.has(key)) return texCache.get(key);
     const S = 256;
     const [cv, ctx] = mkCanvas(S, S);
-    ctx.fillStyle = '#1c1038'; ctx.fillRect(0, 0, S, S);
+    ctx.fillStyle = pal.base; ctx.fillRect(0, 0, S, S);
     // mottled felt noise
     const rnd = HP.util.mulberry32(777);
     for (let i = 0; i < 2600; i++) {
       const x = Math.floor(rnd() * S), y = Math.floor(rnd() * S);
-      ctx.fillStyle = rnd() > 0.5 ? '#221448' : '#180d30';
+      ctx.fillStyle = rnd() > 0.5 ? pal.a : pal.b;
       ctx.fillRect(x, y, 2, 2);
     }
-    // gold pinstripe border
-    ctx.strokeStyle = '#b98f3e'; ctx.lineWidth = 2;
+    // pinstripe border
+    ctx.strokeStyle = pal.trim; ctx.lineWidth = 2;
     ctx.strokeRect(10, 10, S - 20, S - 20);
-    ctx.strokeStyle = '#5c3f10'; ctx.lineWidth = 1;
+    ctx.strokeStyle = pal.trimDark; ctx.lineWidth = 1;
     ctx.strokeRect(14, 14, S - 28, S - 28);
     const t = new THREE.CanvasTexture(cv);
     t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(3, 2);
+    texCache.set(key, t);
     return t;
   }
 
+  // small DOM swatch of a felt for the menu shop
+  function uiTableCanvas(tableId, w, h) {
+    const pal = TABLES[tableId] || TABLES.cathedral;
+    const [cv, ctx] = mkCanvas(w, h);
+    ctx.fillStyle = pal.base; ctx.fillRect(0, 0, w, h);
+    const rnd = HP.util.mulberry32(99);
+    for (let i = 0; i < (w * h) / 6; i++) {
+      ctx.fillStyle = rnd() > 0.5 ? pal.a : pal.b;
+      ctx.fillRect(Math.floor(rnd() * w), Math.floor(rnd() * h), 2, 2);
+    }
+    ctx.strokeStyle = pal.trim; ctx.lineWidth = 2;
+    ctx.strokeRect(4, 4, w - 8, h - 8);
+    ctx.fillStyle = pal.emblem;
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath(); ctx.arc(w / 2, h / 2, Math.min(w, h) * 0.22, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = 1;
+    return cv;
+  }
+
   // ---- centered halo emblem decal for the table ----
-  function makeEmblemTexture() {
+  function makeEmblemTexture(tableId) {
+    const pal = TABLES[tableId] || TABLES.cathedral;
+    const key = 'emblem|' + (TABLES[tableId] ? tableId : 'cathedral');
+    if (texCache.has(key)) return texCache.get(key);
     const S = 128;
     const [cv, ctx] = mkCanvas(S, S);
-    ctx.strokeStyle = '#ffd97a'; ctx.lineWidth = 3;
+    ctx.strokeStyle = pal.emblem; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(S / 2, S / 2, 46, 0, Math.PI * 2); ctx.stroke();
     ctx.beginPath(); ctx.arc(S / 2, S / 2, 34, 0, Math.PI * 2); ctx.stroke();
-    ctx.fillStyle = '#ffd97a';
+    ctx.fillStyle = pal.emblem;
     for (let a = 0; a < 24; a++) {
       const ang = (a / 24) * Math.PI * 2;
       ctx.fillRect(S / 2 + Math.cos(ang) * 56 - 2, S / 2 + Math.sin(ang) * 56 - 2, 4, 4);
     }
     const t = new THREE.CanvasTexture(cv);
     t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+    texCache.set(key, t);
     return t;
   }
 
@@ -366,9 +436,9 @@ HP.art = (function () {
   }
 
   return {
-    STYLES, CW, CH, tierOf,
+    STYLES, TABLES, CW, CH, tierOf,
     cardCanvas, backCanvas, getCardTexture, getBackTexture,
-    uiCardCanvas, uiBackCanvas,
+    uiCardCanvas, uiBackCanvas, uiTableCanvas,
     makeTableTexture, makeRoseTexture, makeGlowTexture, makeSquareTexture, makeEmblemTexture,
   };
 })();

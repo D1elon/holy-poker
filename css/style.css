@@ -582,6 +582,26 @@ button, .btn, .mode-card, .blessing-choice, .style-card, .mini-card,
 .help-p { font-size: 1.15rem; line-height: 1.4; color: var(--ink); margin: 4px 0 10px; }
 .help-p b { color: var(--gold); }
 
+/* ============ CHAPEL OF CHANCE ============ */
+#screen-chapel { pointer-events: none; }
+#screen-chapel.active { display: block; }
+.paytable { border-collapse: collapse; font-family: 'PressStart', monospace; font-size: 0.5rem; line-height: 1.9; }
+.paytable td { padding: 0 8px 0 0; color: var(--ink-dim); white-space: nowrap; }
+.paytable td:nth-child(2) { color: var(--ink); }
+.paytable td:nth-child(3) { color: var(--gold); text-align: right; }
+.paytable tr.hit td { color: var(--gold); text-shadow: 0 0 8px rgba(255,217,122,0.6); animation: bump 0.3s ease-out; }
+.chapel-bets-panel { display: flex; align-items: center; gap: 8px; }
+.bets-label { font-family: 'PressStart', monospace; font-size: 0.55rem; color: var(--ink-dim); }
+.chapel-status { bottom: 235px; }
+.chapel-left { max-width: 330px; }
+
+/* table felts on the styles screen */
+.felt-swatch canvas { width: 100%; image-rendering: pixelated; display: block; margin-bottom: 8px; box-shadow: 0 0 0 2px #0a0618; }
+
+/* settings: sandbox section */
+.settings-section { font-family: 'PressStart', monospace; font-size: 0.6rem; color: var(--ink-dim); margin: 8px 0 -4px; letter-spacing: 1px; }
+.sandbox-row { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+
 /* scoring display */
 .hud-scoring {
   position: absolute; top: 13%; left: 50%; transform: translateX(-50%);

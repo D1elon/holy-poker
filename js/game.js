@@ -41,7 +41,9 @@ HP.game = (function () {
       usedBosses: [], nextBoss: null,
       bonusHands: 0, bonusDiscards: 0, bonusHandSize: 0,
       bonusChips: 0, bonusMult: 0,
-      indulgence: false, shopRerolls: 0, shopBuys: 0, shop: null,
+      indulgence: false, nextHandMult: 1, flaskNext: 0,
+      shopRerolls: 0, shopBuys: 0, shop: null,
+      canContinue: false,
       bankedEssence: 0, bankedGold: 0,
       pendingGold: 0, pendingEssence: 0,
       sort: 'rank',
@@ -132,7 +134,8 @@ HP.game = (function () {
       run.indulgence = false;
     }
 
-    run.handsLeft = run.handsMax + (has('hand+') ? 1 : 0) + run.bonusHands + (run.boss && run.boss.hands ? run.boss.hands : 0);
+    run.handsLeft = run.handsMax + (has('hand+') ? 1 : 0) + run.bonusHands + run.flaskNext + (run.boss && run.boss.hands ? run.boss.hands : 0);
+    run.flaskNext = 0; // Pilgrim's Flask is a one-round gift
     run.discardsLeft = run.discardsMax + (has('discard+') ? 1 : 0) + run.bonusDiscards + (run.boss && run.boss.discards ? run.boss.discards : 0);
     run.handsLeft = Math.max(1, run.handsLeft);
     run.discardsLeft = Math.max(0, run.discardsLeft);
@@ -274,7 +277,8 @@ HP.game = (function () {
       }
     });
     mult = Math.round(mult * 100) / 100;
-    return { ...ev, total: Math.round(chips * mult) };
+    const beads = run.nextHandMult > 1 ? run.nextHandMult : 1;
+    return { ...ev, total: Math.round(chips * mult * beads) };
   }
 
   // ---------- scoring ----------
@@ -380,6 +384,8 @@ HP.game = (function () {
         if (times === 2 && k === 0) { await U.wait(stepDelay * 0.5); if (g !== gen) return; }
       }
 
+      if (hasRelic('calf')) run.pendingGold += 1; // Golden Calf: a coin per scored card
+
       // XP
       const xpGain = Math.round((3 + run.round) * (has('xp2') ? 2 : 1));
       const gained = C.addXp(id, xpGain);
@@ -405,9 +411,16 @@ HP.game = (function () {
     }
     run.stats.levelUps += levelEvents.length;
 
-    // total
+    // total (Prayer Beads: a one-shot ×1.5 on the whole hand)
     mult = Math.round(mult * 100) / 100;
-    const total = Math.round(chips * mult);
+    let total = Math.round(chips * mult);
+    if (run.nextHandMult > 1) {
+      total = Math.round(total * run.nextHandMult);
+      HP.scene.floatText(new THREE.Vector3(0, 1.6, 1), '×' + run.nextHandMult + ' BEADS', '#ffd97a', true);
+      HP.audio.sfx('bless');
+      run.nextHandMult = 1;
+    }
+    if (hasRelic('calf')) HP.scene.floatText(new THREE.Vector3(2.6, 1.2, 1), '+' + played.length + ' ●', '#ffd97a');
     await U.wait(200);
     if (g !== gen) return;
     HP.ui.showTotal(total);
@@ -554,12 +567,20 @@ HP.game = (function () {
 
   // ---------- shop: The Reliquary ----------
   function rollShopStock() {
-    const pool = C.SHOP_ITEMS.filter(it => {
+    const eligible = C.SHOP_ITEMS.filter(it => {
       if (it.id === 'favor') return C.BLESSINGS.some(b => !run.blessings.includes(b.id));
       if (it.id === 'indulgence') return !run.indulgence; // one pending at a time
+      if (it.id === 'beads') return !(run.nextHandMult > 1);
+      if (it.id === 'flask') return !(run.flaskNext > 0);
       return true;
     });
-    const picks = U.shuffle([...pool], Math.random).slice(0, 5);
+    // guaranteed variety: 2 permanent, 2 run-scoped, 1 cheap tactical
+    const take = (cat, n) => U.shuffle(eligible.filter(it => it.cat === cat), Math.random).slice(0, n);
+    let picks = [...take('meta', 2), ...take('run', 2), ...take('tac', 1)];
+    if (picks.length < 5) { // pools exhausted late-run: top up from anything left
+      const rest = U.shuffle(eligible.filter(it => !picks.includes(it)), Math.random);
+      picks = picks.concat(rest.slice(0, 5 - picks.length));
+    }
     const altar = run.shop ? run.shop.altar : !!run.boss; // rerolls keep the altar open
     run.shop = { stock: picks.map(item => ({ item, sold: false })), altar };
   }
@@ -630,19 +651,19 @@ HP.game = (function () {
     switch (item.id) {
       case 'tithe':
       case 'chest': {
-        const n = item.id === 'tithe' ? 8 : 22;
+        const n = item.id === 'tithe' ? 8 : 25;
         meta.essence += n;
         meta.totals.essenceEarned += n;
         run.bankedEssence += n;
         HP.ui.toast(`+${n} essence`, true);
         break;
       }
-      case 'scroll': grantShopXp(1, 80); break;
-      case 'tome': grantShopXp(3, 50); break;
+      case 'scroll': grantShopXp(1, 100); break;
+      case 'tome': grantShopXp(3, 60); break;
       case 'sigilhigh': {
         const best = [...C.ALL_IDS].sort((a, b) => C.cardState(b).lv - C.cardState(a).lv || C.cardState(b).xp - C.cardState(a).xp)
           .find(id => C.cardState(id).lv < C.MAX_LEVEL);
-        if (best) grantXpTo(best, 100);
+        if (best) grantXpTo(best, 150);
         else HP.ui.toast('all cards are transcendent!');
         break;
       }
@@ -650,9 +671,12 @@ HP.game = (function () {
         const lows = C.ALL_IDS.filter(id => C.cardState(id).lv < C.MAX_LEVEL)
           .sort((a, b) => C.cardState(a).lv - C.cardState(b).lv || C.cardState(a).xp - C.cardState(b).xp).slice(0, 3);
         if (!lows.length) { HP.ui.toast('all cards are transcendent!'); break; }
-        for (const id of lows) grantXpTo(id, 60);
+        for (const id of lows) grantXpTo(id, 50);
         break;
       }
+      case 'calf': run.relics.push('calf'); HP.ui.toast('+1 gold per scored card this run'); break;
+      case 'beads': run.nextHandMult = 1.5; HP.ui.toast('your next hand scores ×1.5'); break;
+      case 'flask': run.flaskNext = 1; HP.ui.toast('+1 hand next round'); break;
       case 'miracle': {
         // a FULL level for your strongest climber — worth its price at high levels
         const best = [...C.ALL_IDS].sort((a, b) => C.cardState(b).lv - C.cardState(a).lv || C.cardState(b).xp - C.cardState(a).xp)
@@ -661,8 +685,8 @@ HP.game = (function () {
         else HP.ui.toast('all cards are transcendent!');
         break;
       }
-      case 'candle': run.bonusChips += 30; run.relics.push('candle'); HP.ui.toast('+30 base chips every hand this run'); break;
-      case 'horn': run.bonusMult += 2; run.relics.push('horn'); HP.ui.toast('+2 base mult every hand this run'); break;
+      case 'candle': run.bonusChips += 40; run.relics.push('candle'); HP.ui.toast('+40 base chips every hand this run'); break;
+      case 'horn': run.bonusMult += 3; run.relics.push('horn'); HP.ui.toast('+3 base mult every hand this run'); break;
       case 'chalice': run.bonusHands++; run.relics.push('chalice'); HP.ui.toast('+1 hand every round this run'); break;
       case 'censer': run.bonusDiscards++; run.relics.push('censer'); HP.ui.toast('+1 discard every round this run'); break;
       case 'gauntlet': run.bonusHandSize++; run.relics.push('gauntlet'); HP.ui.toast('+1 hand size this run'); break;
@@ -697,7 +721,7 @@ HP.game = (function () {
     const meta = HP.save.meta;
     if (win) {
       meta.records[run.mode].wins++;
-      if (run.mode === 'standard') C.grantFeat('ascended');
+      if (run.mode === 'standard') { C.grantFeat('ascended'); run.canContinue = true; } // the gate to Endless opens
       if (run.mode === 'bossrush') C.grantFeat('crusader');
       if (run.mode === 'daily') C.grantFeat('rited');
       if (run.mode === 'daily' && meta.daily) meta.daily.won = true;
@@ -723,6 +747,23 @@ HP.game = (function () {
   function ariseAgain() {
     const mode = run ? run.mode : 'standard';
     startRun(mode);
+  }
+
+  // a won Pilgrimage may march on: the run converts to Endless and keeps
+  // everything (levels, blessings, relics) — rounds 13+ under endless scaling
+  function continueEndless() {
+    if (!run || !run.canContinue) return;
+    run.canContinue = false;
+    run.ended = false;
+    run.mode = 'endless';
+    run.seedStr = null;
+    HP.save.meta.records.endless.runs++;
+    if (run.round > HP.save.meta.records.endless.bestRound) HP.save.meta.records.endless.bestRound = run.round;
+    C.grantFeat('beyond');
+    HP.save.save();
+    HP.audio.sfx('bless');
+    HP.ui.toast('✦ the gate opens — ENDLESS VIGIL begins', true);
+    openShop(); // shop first, then round 13
   }
 
   function toMenu() {
@@ -751,7 +792,7 @@ HP.game = (function () {
       nextBoss: run.nextBoss ? { ...run.nextBoss } : null,
       bonusHands: run.bonusHands, bonusDiscards: run.bonusDiscards,
       bonusHandSize: run.bonusHandSize, bonusChips: run.bonusChips, bonusMult: run.bonusMult,
-      indulgence: run.indulgence,
+      indulgence: run.indulgence, nextHandMult: run.nextHandMult, flaskNext: run.flaskNext,
       shopRerolls: run.shopRerolls, shopBuys: run.shopBuys,
       shop: run.shop ? { altar: run.shop.altar, stock: run.shop.stock.map(x => ({ id: x.item.id, sold: x.sold })) } : null,
       bankedEssence: run.bankedEssence, bankedGold: run.bankedGold,
@@ -793,7 +834,7 @@ HP.game = (function () {
       nextBoss: s.nextBoss ? { ...s.nextBoss } : null,
       bonusHands: s.bonusHands, bonusDiscards: s.bonusDiscards,
       bonusHandSize: s.bonusHandSize, bonusChips: s.bonusChips, bonusMult: s.bonusMult,
-      indulgence: s.indulgence,
+      indulgence: s.indulgence, nextHandMult: s.nextHandMult || 1, flaskNext: s.flaskNext || 0,
       shopRerolls: s.shopRerolls, shopBuys: s.shopBuys,
       shop: s.shop ? {
         altar: s.shop.altar,
@@ -861,7 +902,7 @@ HP.game = (function () {
     get run() { return run; },
     get busy() { return busy; },
     startRun, playHand, discard, toggleSort, evalSelection, predictSelection,
-    clearSelection, abandonRun, ariseAgain, toMenu, bindScene, maxPlay,
+    clearSelection, abandonRun, ariseAgain, continueEndless, toMenu, bindScene, maxPlay,
     buyShop, rerollShop, rerollCost, leaveShop,
     pendingRun, resumeRun, clearSnapshot,
   };

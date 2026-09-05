@@ -11,6 +11,8 @@ HP.save = (function () {
       gold: 0,
       cards: {},           // id -> {lv, xp, plays, chips}
       styles: { unlocked: ['classic'], active: 'classic' },
+      tables: { unlocked: ['cathedral'], active: 'cathedral' },
+      chapel: { hands: 0, wagered: 0, won: 0, bestWin: 0 }, // video poker minigame
       settings: {
         master: 0.8, music: 0.55, sfx: 0.85,
         shake: true, crt: true, pixel: 3, // pixelation divisor

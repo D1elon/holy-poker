@@ -4,6 +4,12 @@ A Balatro-style 3D pixel-art roguelike poker game. Every card has an ability,
 every card levels up forever — losing a run never loses your progress.
 Arise again.
 
+## Modules
+
+`js/chapel.js` is the Chapel of Chance (Jacks-or-Better video poker) minigame; it
+borrows the scene's deal/hold/discard primitives and relabels selection badges via
+`HP.scene.setBadgeLabel`. Cosmetics live in `cardart.js` (`STYLES`, `TABLES`).
+
 ## Website
 
 `site/` is a static promo site (home / download / phone-play pages), served at

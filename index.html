@@ -41,6 +41,7 @@
         <button class="btn btn-big btn-gold" id="btn-play">▶ PLAY</button>
         <button class="btn btn-big" id="btn-sanctum">⛧ SANCTUM <span class="btn-note">upgrade cards</span></button>
         <button class="btn btn-big" id="btn-styles">✎ CARD STYLES</button>
+        <button class="btn btn-big" id="btn-chapel">☩ CHAPEL OF CHANCE <span class="btn-note">video poker · bet your gold</span></button>
         <button class="btn btn-big" id="btn-stats">☰ DECK STATS</button>
         <button class="btn btn-big" id="btn-settings">⚙&#xFE0E; SETTINGS</button>
         <button class="btn btn-big" id="btn-help">? HOW TO PLAY</button>
@@ -84,6 +85,8 @@
       <div class="panel-title">✎ CARD STYLES</div>
       <div class="styles-cur">● <span id="styles-gold">0</span> gold</div>
       <div class="styles-grid" id="styles-grid"></div>
+      <div class="stats-section-title">TABLE FELTS</div>
+      <div class="styles-grid" id="felts-grid"></div>
       <div class="panel-actions"><button class="btn" id="btn-styles-back">← BACK</button></div>
     </div>
   </div>
@@ -187,6 +190,7 @@
       <div class="runend-flavor" id="runend-flavor"></div>
       <div class="reward-rows" id="runend-rows"></div>
       <div class="panel-actions">
+        <button class="btn btn-gold btn-big hidden" id="btn-continue-endless">⟶ CONTINUE INTO ENDLESS <span class="btn-note">keep everything · round 13+</span></button>
         <button class="btn btn-gold btn-big" id="btn-arise">⟳ ARISE AGAIN</button>
         <button class="btn" id="btn-runend-menu">MENU</button>
       </div>
@@ -228,6 +232,27 @@
     </div>
   </div>
 
+  <!-- ============ CHAPEL OF CHANCE (video poker) ============ -->
+  <div class="screen" id="screen-chapel">
+    <div class="hud-topleft chapel-left">
+      <div class="hud-panel">
+        <div class="round-label">☩ CHAPEL OF CHANCE</div>
+        <table class="paytable" id="chapel-paytable"></table>
+      </div>
+    </div>
+    <div class="hud-topright">
+      <span class="cur cur-gold" data-tt="Gold — win it or lose it here">● <span id="chapel-gold">0</span></span>
+      <button class="btn btn-small" id="btn-chapel-leave">✕ LEAVE</button>
+    </div>
+    <div class="hud-preview chapel-status" id="chapel-status">place your bet</div>
+    <div class="hud-bottomleft">
+      <div class="hud-panel chapel-bets-panel"><span class="bets-label">BET</span><span class="seg-group" id="chapel-bets"></span></div>
+    </div>
+    <div class="hud-bottomright">
+      <button class="btn btn-play" id="btn-chapel-action">DEAL</button>
+    </div>
+  </div>
+
   <!-- ============ HELP ============ -->
   <div class="screen" id="screen-help">
     <div class="panel panel-wide">
@@ -262,6 +287,7 @@
 <script src="js/cards.js"></script>
 <script src="js/scene3d.js"></script>
 <script src="js/game.js"></script>
+<script src="js/chapel.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/main.js"></script>
 </body>

@@ -5,7 +5,7 @@ HP.ui = (function () {
   const U = HP.util, C = HP.cards;
   const $ = id => document.getElementById(id);
 
-  const SCREENS = ['menu', 'modes', 'sanctum', 'styles', 'stats', 'settings', 'hud', 'roundend', 'runend', 'pause', 'shop', 'help'];
+  const SCREENS = ['menu', 'modes', 'sanctum', 'styles', 'stats', 'settings', 'hud', 'roundend', 'runend', 'pause', 'shop', 'help', 'chapel'];
   let current = 'menu';
   let settingsReturn = 'menu';
   let sanctumReturn = 'menu';
@@ -245,6 +245,53 @@ HP.ui = (function () {
       });
       grid.appendChild(d);
     }
+
+    // table felts
+    const fgrid = $('felts-grid');
+    fgrid.innerHTML = '';
+    if (!meta.tables) meta.tables = { unlocked: ['cathedral'], active: 'cathedral' };
+    for (const tid of Object.keys(HP.art.TABLES)) {
+      const t = HP.art.TABLES[tid];
+      const unlocked = meta.tables.unlocked.includes(tid);
+      const active = meta.tables.active === tid;
+      const d = document.createElement('div');
+      d.className = 'style-card felt-swatch' + (active ? ' active-style' : '');
+      const name = document.createElement('div');
+      name.className = 'style-name'; name.textContent = t.name;
+      d.appendChild(name);
+      d.appendChild(HP.art.uiTableCanvas(tid, 120, 56));
+      const status = document.createElement('div');
+      status.className = 'style-status';
+      status.innerHTML = active ? '<span style="color:var(--ok)">✓ ON THE TABLE</span>'
+        : unlocked ? 'click to lay it'
+        : `<span class="locked">unlock: ${t.cost} ●</span>`;
+      d.appendChild(status);
+      d.addEventListener('click', () => {
+        if (active) return;
+        if (unlocked) {
+          meta.tables.active = tid;
+          HP.save.save();
+          HP.audio.sfx('click');
+          HP.scene.tableChanged();
+          renderStyles();
+        } else if (meta.gold >= t.cost) {
+          showModal(`Unlock the ${t.name} felt for ${t.cost} gold?`, () => {
+            meta.gold -= t.cost;
+            meta.tables.unlocked.push(tid);
+            meta.tables.active = tid;
+            HP.save.saveNow();
+            HP.audio.sfx('buy');
+            HP.scene.tableChanged();
+            renderStyles();
+            toast(`${t.name} felt unlocked!`);
+          });
+        } else {
+          HP.audio.sfx('error');
+          toast(`need ${t.cost - meta.gold} more gold`);
+        }
+      });
+      fgrid.appendChild(d);
+    }
   }
 
   // ---------- stats ----------
@@ -396,6 +443,40 @@ HP.ui = (function () {
     });
     d.appendChild(seg);
     rows.appendChild(d);
+
+    // sandbox: for testing builds and showing friends the late game
+    const sec = document.createElement('div');
+    sec.className = 'settings-section';
+    sec.textContent = 'SANDBOX';
+    rows.appendChild(sec);
+    const sb = document.createElement('div');
+    sb.className = 'sandbox-row';
+    const mk = (label, confirmText, fn) => {
+      const b = document.createElement('button');
+      b.className = 'btn btn-small';
+      b.textContent = label;
+      b.addEventListener('click', () => showModal(confirmText, () => { fn(); HP.audio.sfx('awaken'); renderSettings(); }));
+      sb.appendChild(b);
+    };
+    mk('UNLOCK ALL COSMETICS', 'Unlock every card style and table felt?', () => {
+      const m = HP.save.meta;
+      m.styles.unlocked = Object.keys(HP.art.STYLES);
+      m.tables.unlocked = Object.keys(HP.art.TABLES);
+      HP.save.saveNow();
+      toast('all styles & felts unlocked');
+    });
+    mk('MAX ALL CARDS', 'Set every card to Lv.10 (Transcendent)? This skips the climb — and the feats that come with it.', () => {
+      for (const id of C.ALL_IDS) { const st = C.cardState(id); st.lv = C.MAX_LEVEL; st.xp = 0; }
+      HP.save.saveNow();
+      HP.scene.styleChanged();
+      toast('every card is transcendent');
+    });
+    mk('+500 GOLD · +200 ESSENCE', 'Grant 500 gold and 200 essence?', () => {
+      HP.save.meta.gold += 500; HP.save.meta.essence += 200;
+      HP.save.saveNow();
+      toast('the coffers overflow');
+    });
+    rows.appendChild(sb);
   }
 
   // ---------- HUD ----------
@@ -573,6 +654,7 @@ HP.ui = (function () {
     title.textContent = win ? '✦ ASCENSION ✦' : 'THE HOUSE PREVAILS';
     title.style.color = win ? 'var(--gold)' : 'var(--mult-red)';
     $('runend-flavor').textContent = U.pick(win ? WIN_FLAVOR : LOSE_FLAVOR);
+    $('btn-continue-endless').classList.toggle('hidden', !(win && run.canContinue));
     const rows = $('runend-rows');
     rows.innerHTML = '';
     const addRow = (label, val, i, cls) => {
@@ -864,7 +946,13 @@ HP.ui = (function () {
       showScreen('sanctum');
     });
 
+    // chapel of chance
+    $('btn-chapel').addEventListener('click', () => { sfxClick(); HP.chapel.enter(); });
+    $('btn-chapel-leave').addEventListener('click', () => HP.chapel.leave());
+    $('btn-chapel-action').addEventListener('click', () => HP.chapel.action());
+
     // run end
+    $('btn-continue-endless').addEventListener('click', () => { sfxClick(); HP.game.continueEndless(); });
     $('btn-arise').addEventListener('click', () => { sfxClick(); HP.game.ariseAgain(); });
     $('btn-runend-menu').addEventListener('click', () => { sfxClick(); HP.game.toMenu(); });
 
@@ -883,6 +971,7 @@ HP.ui = (function () {
         else if (current === 'settings' && settingsReturn === 'shop' && HP.game.run && HP.game.run.shop) showShop(HP.game.run);
         else if (current === 'sanctum' && sanctumReturn === 'shop' && HP.game.run && HP.game.run.shop) showShop(HP.game.run);
         else if (current === 'help') $('btn-help-back').click();
+        else if (current === 'chapel') HP.chapel.leave();
         else if (['modes', 'sanctum', 'styles', 'stats', 'settings'].includes(current)) { refreshMenu(); showScreen('menu'); }
       }
       if (e.key === 'Enter' && current === 'hud' && !$('btn-playhand').disabled) HP.game.playHand();

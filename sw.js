@@ -7,7 +7,7 @@
 // stale-while-revalidate. Cache names are prefix-scoped: github.io project
 // pages share one origin, so we must never touch other apps' caches.
 const PREFIX = 'holy-poker-';
-const CACHE = PREFIX + 'v8';
+const CACHE = PREFIX + 'v9';
 const ASSETS = [
   './',
   './index.html',
@@ -22,6 +22,7 @@ const ASSETS = [
   './js/cards.js',
   './js/scene3d.js',
   './js/game.js',
+  './js/chapel.js',
   './js/ui.js',
   './js/main.js',
   './fonts/PressStart2P.woff2',
